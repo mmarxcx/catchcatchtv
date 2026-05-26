@@ -1,0 +1,1439 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>CatchCatchTV — Admin Panel</title>
+<link rel="stylesheet" href="/static/style.css">
+<script nonce="{{ g.csp_nonce }}">if(localStorage.getItem('cctv_dark_mode')==='1')document.documentElement.classList.add('dark-mode');</script>
+<style>
+  .admin-wrap{max-width:1200px;width:100%;margin:0 auto;padding:24px 16px;box-sizing:border-box}
+  .admin-title{font-family:var(--display);font-size:1.5rem;font-weight:900;margin-bottom:4px;
+    background:var(--grad-brand);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;}
+  .admin-sub{color:var(--text2);font-size:.9rem;margin-bottom:24px}
+  .stats-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px;margin-bottom:24px;width:100%}
+  .stat-box{background:var(--bg2);background-image:var(--grad-card);border:1px solid var(--border2);border-radius:10px;padding:16px;position:relative;overflow:hidden;box-shadow:0 1px 4px rgba(0,0,0,.06);cursor:pointer;transition:box-shadow .15s,border-color .15s}
+  .stat-box{background:var(--bg2);background-image:var(--grad-card);border:1px solid var(--border2);border-radius:10px;padding:16px;position:relative;overflow:hidden;box-shadow:0 1px 4px rgba(0,0,0,.06);cursor:pointer;transition:transform .2s ease, box-shadow .2s ease, border-color .15s}
+  .stat-box:hover{transform:translateY(-3px);box-shadow:0 8px 24px rgba(0,0,0,.12);border-color:var(--blue)}
+  .stat-box::before{content:'';position:absolute;top:0;left:0;right:0;height:1px;background:var(--grad-brand);opacity:.3}
+  .stat-box .num{font-family:var(--display);font-size:2.2rem;font-weight:700}
+  .stat-box .lbl{font-family:var(--display);font-size:.72rem;color:var(--text2);text-transform:uppercase;letter-spacing:.08em;margin-top:4px}
+  .stat-box.red .num{color:var(--red)}
+  .stat-box.yellow .num{color:var(--amber)}
+  .stat-box.green .num{color:var(--green)}
+  .stat-box.blue .num{color:var(--blue)}
+  table{width:100%;border-collapse:collapse;font-size:.85rem}
+  th{text-align:left;padding:10px 12px;color:var(--text2);font-family:var(--display);font-weight:600;text-transform:uppercase;font-size:.7rem;letter-spacing:.08em;border-bottom:1px solid var(--border2)}
+  td{padding:10px 12px;border-bottom:1px solid rgba(0,120,200,.06);vertical-align:middle}
+  tr{transition:background .2s ease;}
+  tr:hover td{background:rgba(0,120,200,.06)}
+  .sev{display:inline-block;padding:4px 10px;border-radius:99px;font-family:var(--display);font-size:.7rem;font-weight:800;letter-spacing:.05em;border:none;}
+  .sev-INFO{background:rgba(0,120,200,.1);color:var(--blue)}
+  .sev-WARNING{background:rgba(201,128,0,.1);color:var(--amber)}
+  .sev-ALERT{background:rgba(201,82,0,.1);color:var(--orange)}
+  .sev-CRITICAL{background:rgba(214,25,74,.1);color:var(--red)}
+  .ip-tag{font-family:monospace;font-size:.8rem;background:rgba(0,120,200,.07);padding:2px 7px;border-radius:4px;color:var(--cyan)}
+  .mono{font-family:monospace;font-size:.8rem}
+  /* Segmented Controls */
+  .tab-bar {
+    display: inline-flex; gap: 4px; margin-bottom: 24px; flex-wrap: wrap;
+    background: rgba(0, 112, 204, 0.05); border: 1px solid rgba(0, 112, 204, 0.08);
+    border-radius: 12px; padding: 6px; align-items: center;
+  }
+  .tab {
+    display: flex; align-items: center; gap: 6px;
+    padding: 8px 16px; border-radius: 8px; font-family: var(--display); font-size: .8rem; font-weight: 700;
+    cursor: pointer; border: none; background: transparent; color: var(--text2);
+    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1); letter-spacing: .04em;
+  }
+  .tab:hover:not(.active) { background: rgba(0, 112, 204, 0.04); color: var(--text); }
+  .tab.active {
+    background: #ffffff; color: var(--blue);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06), 0 1px 2px rgba(0, 0, 0, 0.04);
+  }
+  .tab.active svg { color: var(--blue) !important; }
+  
+  .tab-content{display:none;width:100%}
+  .tab-content.active{display:block}
+  .unblock-btn{padding:6px;border-radius:6px;border:1px solid rgba(214,25,74,.3);color:var(--red);background:rgba(214,25,74,.05);cursor:pointer;transition:all .2s;}
+  .unblock-btn:hover{background:var(--red);color:#fff;border-color:var(--red);transform:scale(1.1);}
+  .empty{color:var(--text2);font-size:.88rem;padding:24px 0;text-align:center}
+  .card{background:var(--bg2);background-image:var(--grad-card);border:1px solid var(--border2);border-radius:12px;padding:16px;overflow-x:auto;position:relative;box-shadow:0 1px 4px rgba(0,0,0,.05)}
+  .card::before{content:'';position:absolute;top:0;left:0;right:0;height:1px;background:var(--grad-brand);opacity:.3}
+  
+  /* Modern Filter Inputs */
+  .filter-row { display: flex; gap: 12px; margin-bottom: 16px; flex-wrap: wrap; align-items: center; }
+  .filter-row input, .filter-row select {
+    background: rgba(0,120,200,.04); border: 1px solid var(--border2); border-radius: 10px;
+    padding: 8px 14px; color: var(--text); font-size: .85rem; font-family: var(--mono); transition: all 0.2s;
+  }
+  .filter-row select option { background: var(--bg2); color: var(--text); }
+  .filter-row input { width: 220px; }
+  .filter-row input:focus, .filter-row select:focus {
+    outline: none; border-color: var(--blue); background: var(--bg2);
+    box-shadow: 0 0 0 3px rgba(0,112,204,0.12);
+  }
+  .logs-card-wrap{background:var(--bg2);background-image:var(--grad-card);border:1px solid var(--border2);border-radius:12px;position:relative;overflow:hidden;box-shadow:0 1px 4px rgba(0,0,0,.05)}
+  .logs-card-wrap::before{content:'';position:absolute;top:0;left:0;right:0;height:1px;background:var(--grad-brand);opacity:.3}
+  .admin-logs-table-wrap{overflow-y:auto;overflow-x:auto;max-height:calc(100vh - 260px);min-height:300px;padding:0 16px 16px}
+  .admin-logs-table-wrap::-webkit-scrollbar{width:5px;height:5px}
+  .admin-logs-table-wrap::-webkit-scrollbar-thumb{background:var(--border2);border-radius:3px}
+  .role-select{background:rgba(0,120,200,.04);border:1px solid var(--border2);border-radius:6px;padding:5px 10px;color:var(--blue);font-size:.8rem;font-family:var(--mono);cursor:pointer;min-width:110px}
+  .role-select:focus{outline:none;border-color:var(--purple)}
+  .role-select option{background:var(--bg2);color:var(--blue)}
+  .save-role-btn{font-size:.75rem;padding:5px 13px;border-radius:5px;border:1px solid var(--blue);color:var(--blue);background:transparent;cursor:pointer;font-family:var(--mono);transition:all .2s}
+  .save-role-btn:hover{background:rgba(0,120,200,.08)}
+  .save-role-btn.saving{opacity:.5;cursor:not-allowed}
+  .save-role-btn.saved{border-color:var(--green);color:var(--green)}
+  .mini-btn{font-size:.72rem;padding:5px 8px;border-radius:6px;border:1px solid var(--border2);background:rgba(0,120,200,.04);color:var(--blue);cursor:pointer;margin:2px;white-space:nowrap}
+  .mini-btn:hover{border-color:var(--blue);background:rgba(0,120,200,.1)}
+  .mini-btn.danger{color:var(--red);border-color:rgba(214,25,74,.28);background:rgba(214,25,74,.05)}
+  .mini-btn.warn{color:var(--amber);border-color:rgba(201,128,0,.28);background:rgba(201,128,0,.05)}
+  .mini-btn.green{color:var(--green);border-color:rgba(16,185,129,.28);background:rgba(16,185,129,.06)}
+  .toolbar-btn{display:flex;align-items:center;gap:6px;border:1px solid var(--border2);border-radius:10px;padding:7px 14px;font-weight:600;font-family:var(--sans);font-size:12px;color:var(--text2);background:#fff;box-shadow:0 1px 3px rgba(0,0,0,.02);cursor:pointer;transition:all .2s}
+  .toolbar-btn:hover{color:var(--blue);border-color:var(--blue);box-shadow:0 2px 6px rgba(0,112,204,.08)}
+  .toolbar-btn.clear{border:none;border-radius:8px;padding:7px 10px;background:transparent;box-shadow:none}
+  .toolbar-btn.clear:hover{color:var(--red);background:rgba(214,25,74,.05)}
+  .security-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:12px}
+  .security-panel{border:1px solid var(--border2);border-radius:8px;padding:12px;background:rgba(0,120,200,.025)}
+  .security-panel h3{margin:0 0 10px;font-size:.85rem;font-family:var(--display)}
+  .security-panel label{display:block;font-size:.72rem;color:var(--text2);font-weight:700;text-transform:uppercase;letter-spacing:.06em;margin:8px 0 4px}
+  .security-panel input,.security-panel select,.security-panel textarea{width:100%;box-sizing:border-box;background:rgba(0,120,200,.04);border:1px solid var(--border2);border-radius:7px;padding:8px;color:var(--text);font-size:.85rem}
+  .timeline-box{max-height:320px;overflow:auto;font-size:.8rem;border:1px solid var(--border2);border-radius:8px;padding:10px;background:rgba(0,0,0,.015)}
+  .role-badge-admin{background:rgba(124,58,237,.12);color:var(--purple);border:none;display:inline-block;padding:4px 10px;border-radius:99px;font-family:var(--display);font-size:.7rem;font-weight:800;letter-spacing:0.04em}
+  .role-badge-user{background:rgba(0,120,200,.12);color:var(--blue);border:none;display:inline-block;padding:4px 10px;border-radius:99px;font-family:var(--display);font-size:.7rem;font-weight:800;letter-spacing:0.04em}
+  .info-box{background:rgba(0,120,200,.05);border:1px solid rgba(0,120,200,.2);border-radius:8px;padding:12px 16px;font-size:.85rem;color:var(--text2);margin-bottom:16px;line-height:1.6}
+  .info-box strong{color:var(--blue)}
+  @media(max-width:600px){
+    .admin-wrap{padding:16px 10px}
+    .stats-grid{grid-template-columns:1fr 1fr}
+    .tab-bar{gap:5px}
+    .tab{padding:6px 12px;font-size:.72rem}
+    table{font-size:.78rem}
+    th,td{padding:7px 8px}
+    .filter-row input{width:120px}
+  }
+  /* Ensure modals sit above all stacking contexts including backdrop-filter layers */
+  .profile-modal-overlay { z-index: 999999 !important; }
+</style>
+</head>
+<body class="dash-body" style="margin: 0; padding: 0; overflow: hidden;">
+
+<div style="display: flex; height: 100vh; width: 100vw; overflow: hidden;">
+
+    <aside class="sidebar" id="sidebar">
+    <button class="sidebar-toggle" id="sidebarToggle" title="Toggle sidebar">
+      <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"></polyline></svg>
+    </button>
+
+    <div class="sidebar-brand">
+      <svg class="brand-logo" viewBox="530 551 2120 1620" xmlns="http://www.w3.org/2000/svg">
+        <defs>
+          <linearGradient id="sidebarBrandGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+            <stop offset="0%" stop-color="#0070cc"/>
+            <stop offset="50%" stop-color="#7c3aed"/>
+            <stop offset="100%" stop-color="#c0186b"/>
+          </linearGradient>
+        </defs>
+        <path fill="url(#sidebarBrandGrad)" d="M 1529.039062 585.910156 L 1858.929688 601.621094 L 2619.910156 941.039062 L 2260.011719 932.339844 L 2107.78125 1111.078125 L 1481.910156 811.078125 Z"/>
+        <path fill="url(#sidebarBrandGrad)" d="M 1510.710938 860.820312 L 2084.089844 1140.96875 L 2084.089844 1235.21875 L 1502.851562 923.660156 Z"/>
+        <path fill="url(#sidebarBrandGrad)" d="M 2269.980469 941.988281 L 2489.910156 947.21875 L 2488.160156 1091.511719 L 2387.800781 1258.789062 L 2097.179688 1245.691406 L 2100.058594 1153.808594 Z"/>
+        <circle fill="url(#sidebarBrandGrad)" opacity="0.15" cx="2321.570312" cy="1104.488281" r="201"/>
+        <circle fill="url(#sidebarBrandGrad)" opacity="0.5" cx="2321.570312" cy="1104.488281" r="100"/>
+        <circle fill="white" opacity="0.55" cx="2321.570312" cy="1104.488281" r="50"/>
+        <path fill="url(#sidebarBrandGrad)" d="M 1788.800781 1104.039062 L 2040.171875 1230.378906 L 2040.171875 1297.019531 L 1795.570312 1178.28125 Z"/>
+        <path fill="url(#sidebarBrandGrad)" d="M 1829.988281 1208.351562 L 1831.078125 1318.039062 L 1481.070312 1441.429688 L 1481.070312 1481.058594 C 1489.628906 1497.070312 1498.511719 1512.910156 1507.679688 1528.570312 C 1578.050781 1571.460938 1654.269531 1608.761719 1729.140625 1635.789062 L 1729.140625 1482.160156 L 2032.761719 1341.460938 L 2031.078125 1304.25 Z"/>
+        <path fill="url(#sidebarBrandGrad)" d="M 2498.589844 948.53125 L 2617.808594 948.53125 L 2545.238281 1087.78125 L 2499.070312 1087.289062 Z"/>
+        <path fill="url(#sidebarBrandGrad)" opacity="0.9" d="M 858.074219 551.800781 L 945.550781 661.988281 L 854.519531 713.421875 L 653.628906 626.871094 L 597.132812 699.289062 L 789.921875 829.019531 L 794.222656 964.769531 L 580.089844 964.019531 L 647.546875 1125.488281 L 898.757812 1189.960938 L 1052.269531 1392.328125 L 952.613281 1524.96875 L 1138.449219 1705.328125 L 1325.230469 1638.519531 L 1555.199219 1780.148438 L 1618.488281 1992.199219 L 1813.339844 2066.871094 L 1834.21875 1901.140625 L 2010.621094 1920.050781 L 2157.589844 2094.601562 L 2256.789062 2062.070312 L 2173.679688 1890.058594 L 2247.898438 1822.828125 L 2375.738281 1912.058594 L 2399.589844 1838.910156 L 2277.789062 1706.191406 L 2265.671875 1607.460938 L 2360 1631.398438 L 2316.53125 1536.820312 L 2236.53125 1489.800781 C 2213.621094 1510.058594 2179.210938 1533.378906 2139.988281 1550 C 2150.019531 1618.601562 2125.480469 1635.878906 2085.78125 1668.488281 C 1939.429688 1788.71875 1581.921875 1646.269531 1364.878906 1471.710938 C 1039.410156 1209.96875 923.886719 901.96875 1054.679688 802.910156 C 1109.75 761.199219 1207.429688 756.960938 1323.96875 786.308594 L 1387.078125 679.589844 L 1210.921875 603.351562 L 1225.179688 680.609375 L 1110.578125 659.441406 L 971.742188 553.421875 Z"/>
+      </svg>
+      <span class="brand-name">CatchCatchTV</span>
+    </div>
+
+    <!-- Profile Card -->
+    <div class="sidebar-profile" id="openProfileModal" title="Your Profile">
+      <div class="profile-avatar" id="sidebarAvatarInitials">{{ user.username[:2].upper() }}</div>
+      <div class="profile-info">
+        <div class="profile-name" id="sidebarProfileName">{{ user.username }}</div>
+        <div class="profile-role is-admin" id="sidebarProfileRole">{{ 'Admin' if user.role == 'admin' else 'User' }}</div>
+      </div>
+    </div>
+
+    <nav class="sidebar-nav">
+      {% if user.role == 'admin' %}
+      <a href="/dashboard" class="nav-item {% if request.path == '/dashboard' %}active{% endif %}" data-label="Dashboard">
+        <svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7"></rect><rect x="14" y="3" width="7" height="7"></rect><rect x="14" y="14" width="7" height="7"></rect><rect x="3" y="14" width="7" height="7"></rect></svg>
+        <span class="nav-label">Dashboard</span>
+      </a>
+      {% endif %}
+
+      <a href="/camera" class="nav-item {% if request.path == '/camera' %}active{% endif %}" data-label="Camera">
+        <svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M23 7l-7 5 7 5V7z"></path><rect x="1" y="5" width="15" height="14" rx="2" ry="2"></rect></svg>
+        <span class="nav-label">Camera</span>
+      </a>
+
+      {% if user.role == 'admin' %}
+      <a href="/admin" class="nav-item {% if request.path == '/admin' %}active{% endif %}" data-label="Administrator">
+        <svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path></svg>
+        <span class="nav-label">Administrator</span>
+      </a>
+      {% endif %}
+
+      <a href="/settings" class="nav-item {% if request.path == '/settings' %}active{% endif %}" data-label="Settings">
+        <svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>
+        <span class="nav-label">Settings</span>
+      </a>
+    </nav>
+    <div class="sidebar-footer">
+      <div class="nav-item" id="openFaqModal" style="cursor:pointer;user-select:none;" title="Help & FAQ">
+        <svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"></circle><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"></path><line x1="12" y1="17" x2="12.01" y2="17"></line></svg>
+        <span class="nav-label">Help &amp; FAQ</span>
+      </div>
+      <div class="nav-item" id="adminDarkModeToggle" style="cursor:pointer;user-select:none;" title="Toggle dark mode">
+        <svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" id="adminDarkModeIcon"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path></svg>
+        <span class="nav-label" id="adminDarkModeLabel">Dark Mode</span>
+      </div>
+      <a href="/logout" class="nav-item" style="color: var(--red);" data-label="Logout">
+        <svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path><polyline points="16 17 21 12 16 7"></polyline><line x1="21" y1="12" x2="9" y2="12"></line></svg>
+        <span class="nav-label">Logout</span>
+      </a>
+    </div>
+  </aside>
+
+  <div class="main-content" style="flex: 1; display: flex; flex-direction: column; height: 100vh; overflow: hidden;">
+    
+    <header class="page-header">
+        
+        <div style="display: flex; align-items: center; gap: 16px;">
+          <button class="mobile-menu-btn" id="mobileMenuBtn">
+            <svg width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><line x1="3" y1="12" x2="21" y2="12"></line><line x1="3" y1="6" x2="21" y2="6"></line><line x1="3" y1="18" x2="21" y2="18"></line></svg>
+          </button>
+          
+          <div style="display: flex; align-items: center; gap: 12px;">
+            <svg width="28" height="28" fill="none" stroke="url(#adminGrad)" stroke-width="2" viewBox="0 0 24 24" style="flex-shrink: 0;">
+              <defs>
+                <linearGradient id="adminGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+                  <stop offset="0%" stop-color="#0070cc" />
+                  <stop offset="50%" stop-color="#7c3aed" />
+                  <stop offset="100%" stop-color="#c0186b" />
+                </linearGradient>
+              </defs>
+              <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path>
+            </svg>
+            <h1 class="page-title" style="margin: 0; line-height: 1; background: var(--grad-brand); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;">Administrator</h1>
+          </div>
+        </div>
+        
+      </header>
+
+    <div style="flex: 1; overflow-y: auto; padding-bottom: 40px;">
+      <div class="admin-wrap">
+        <div class="admin-sub">Logged in as <strong>{{ user.username }}</strong> — system-wide view</div>
+
+        <div class="stats-grid" id="statsGrid">
+          <div class="stat-box blue" style="cursor:pointer;" title="View all users"><div class="num" id="statUsers">—</div><div class="lbl">Total Users</div></div>
+          <div class="stat-box yellow" style="cursor:pointer;" title="View failed login logs"><div class="num" id="statFailed">—</div><div class="lbl">Failed Logins (24h)</div></div>
+          <div class="stat-box red" style="cursor:pointer;" title="View active threats"><div class="num" id="statThreats">—</div><div class="lbl">Active Threats</div></div>
+          <div class="stat-box red" style="cursor:pointer;" title="View blocked IPs"><div class="num" id="statBlocked">—</div><div class="lbl">Blocked IPs</div></div>
+          <div class="stat-box green" style="cursor:pointer;" title="View all logs"><div class="num" id="statLogs">—</div><div class="lbl">Total Log Entries</div></div>
+        </div>
+
+        <div class="tab-bar">
+          <button class="tab active" data-tab="logs" style="display: flex; align-items: center; gap: 6px;">
+            <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+            All Logs
+          </button>
+          <button class="tab" data-tab="blocked" style="display: flex; align-items: center; gap: 6px;">
+            <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"></circle><line x1="4.93" y1="4.93" x2="19.07" y2="19.07"></line></svg>
+            Blocked IPs
+          </button>
+          <button class="tab" data-tab="users" style="display: flex; align-items: center; gap: 6px;">
+            <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M23 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></svg>
+            User Management
+          </button>
+          <button class="tab" data-tab="roles" style="display: flex; align-items: center; gap: 6px;">
+            <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.778 7.778 5.5 5.5 0 0 1 7.777-7.777zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4"></path></svg>
+            Role Assignment
+          </button>
+          <button class="tab" data-tab="security" style="display: flex; align-items: center; gap: 6px;">
+            <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M12 2l8 4v6c0 5-3.5 9-8 10-4.5-1-8-5-8-10V6l8-4z"></path></svg>
+            Security
+          </button>
+        </div>
+
+        <div class="tab-content active" id="tab-logs">
+          <div class="filter-row" style="display: flex; justify-content: space-between; align-items: center; width: 100%; border-bottom: 1px solid var(--border); padding-bottom: 16px; margin-bottom: 16px;">
+            
+            <div style="display: flex; gap: 12px; flex-wrap: wrap; align-items: center;">
+              <div style="position: relative;">
+                <input type="text" style="position:absolute;opacity:0;height:0;width:0;pointer-events:none;" tabindex="-1" name="username" autocomplete="username" aria-hidden="true">
+                <input type="password" style="position:absolute;opacity:0;height:0;width:0;pointer-events:none;" tabindex="-1" name="password" autocomplete="current-password" aria-hidden="true">
+                <svg style="position: absolute; left: 12px; top: 50%; transform: translateY(-50%); width: 15px; height: 15px; color: var(--text2);" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path></svg>
+                <input type="search" id="filterIP" autocomplete="off" placeholder="Filter by IP..." style="padding-left: 36px; width: 180px;">
+              </div>
+              
+              <!-- Hidden native select kept for JS compatibility (.value reads/writes still work) -->
+              <select id="filterSev" style="display:none;" aria-hidden="true">
+                <option value="ALL">All Severities</option>
+                <option value="INFO">Info</option>
+                <option value="WARNING">Notice</option>
+                <option value="ALERT">Alert</option>
+                <option value="CRITICAL">Critical</option>
+              </select>
+              <!-- Custom dropdown button that visually matches the All Users button -->
+              <div id="sevFilterContainer" style="position: relative;">
+                <button id="sevDropdownBtn" style="background: rgba(0,120,200,0.04); border: 1px solid var(--border2); border-radius: 10px; padding: 8px 14px; color: var(--text); font-size: 0.85rem; font-family: var(--mono); cursor: pointer; display: flex; align-items: center; justify-content: space-between; gap: 8px; min-width: 160px; max-width: 220px; transition: all 0.2s;">
+                  <div style="display: flex; align-items: center; gap: 6px; overflow: hidden;">
+                    <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" style="flex-shrink:0; color:var(--text2);"><path d="M22 3H2l8 9.46V19l4 2v-8.54L22 3z"></path></svg>
+                    <span id="sevDropdownText" style="white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">All Severities</span>
+                  </div>
+                  <svg width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" style="flex-shrink:0; color:var(--text2);"><polyline points="6 9 12 15 18 9"></polyline></svg>
+                </button>
+                <div id="sevDropdownMenu" style="display: none; position: absolute; top: 100%; left: 0; margin-top: 6px; background: var(--bg2); border: 1px solid var(--border2); border-radius: 10px; width: 220px; overflow: hidden; box-shadow: 0 8px 24px rgba(0,0,0,0.12); z-index: 100;">
+                  <div class="sev-option" data-value="ALL" data-label="All Severities" data-sub="Show logs of every level" style="padding: 8px 12px; cursor: pointer; display: flex; flex-direction: column; border-bottom: 1px solid var(--border); transition: background 0.15s; background: rgba(0,112,204,0.06);">
+                    <span style="font-size: 0.85rem; font-weight: 700; color: var(--blue);">All Severities</span>
+                    <span style="font-size: 0.7rem; color: var(--text2); font-family: var(--mono); margin-top: 2px;">Show logs of every level</span>
+                  </div>
+                  <div class="sev-option" data-value="INFO" data-label="Info" data-sub="Routine events and activity" style="padding: 8px 12px; cursor: pointer; display: flex; flex-direction: column; border-bottom: 1px solid var(--border); transition: background 0.15s;">
+                    <span style="font-size: 0.85rem; font-weight: 600; color: var(--blue);">Info</span>
+                    <span style="font-size: 0.7rem; color: var(--text2); font-family: var(--mono); margin-top: 2px;">Routine events and activity</span>
+                  </div>
+                  <div class="sev-option" data-value="WARNING" data-label="Notice" data-sub="Mild warnings worth noting" style="padding: 8px 12px; cursor: pointer; display: flex; flex-direction: column; border-bottom: 1px solid var(--border); transition: background 0.15s;">
+                    <span style="font-size: 0.85rem; font-weight: 600; color: var(--blue);">Notice</span>
+                    <span style="font-size: 0.7rem; color: var(--text2); font-family: var(--mono); margin-top: 2px;">Mild warnings worth noting</span>
+                  </div>
+                  <div class="sev-option" data-value="ALERT" data-label="Alert" data-sub="Attention required" style="padding: 8px 12px; cursor: pointer; display: flex; flex-direction: column; border-bottom: 1px solid var(--border); transition: background 0.15s;">
+                    <span style="font-size: 0.85rem; font-weight: 600; color: var(--blue);">Alert</span>
+                    <span style="font-size: 0.7rem; color: var(--text2); font-family: var(--mono); margin-top: 2px;">Attention required</span>
+                  </div>
+                  <div class="sev-option" data-value="CRITICAL" data-label="Critical" data-sub="High severity — immediate action" style="padding: 8px 12px; cursor: pointer; display: flex; flex-direction: column; transition: background 0.15s;">
+                    <span style="font-size: 0.85rem; font-weight: 600; color: var(--blue);">Critical</span>
+                    <span style="font-size: 0.7rem; color: var(--text2); font-family: var(--mono); margin-top: 2px;">High severity — immediate action</span>
+                  </div>
+                </div>
+              </div>
+              
+              <div id="userFilterContainer" style="position: relative;">
+                <input type="hidden" id="filterUser" value="">
+                <button id="userDropdownBtn" style="background: rgba(0,120,200,0.04); border: 1px solid var(--border2); border-radius: 10px; padding: 8px 14px; color: var(--text); font-size: 0.85rem; font-family: var(--mono); cursor: pointer; display: flex; align-items: center; justify-content: space-between; gap: 8px; min-width: 160px; max-width: 220px; transition: all 0.2s;">
+                  <div style="display: flex; align-items: center; gap: 6px; overflow: hidden;">
+                    <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" style="flex-shrink:0; color:var(--text2);"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>
+                    <span id="userDropdownText" style="white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">All Users</span>
+                  </div>
+                  <svg width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" style="flex-shrink:0; color:var(--text2);"><polyline points="6 9 12 15 18 9"></polyline></svg>
+                </button>
+                <div id="userDropdownMenu" style="display: none; position: absolute; top: 100%; left: 0; margin-top: 6px; background: var(--bg2); border: 1px solid var(--border2); border-radius: 10px; width: 260px; max-height: 320px; overflow-y: auto; box-shadow: 0 8px 24px rgba(0,0,0,0.12); z-index: 100;">
+                  </div>
+              </div>
+            </div>
+            
+            <div style="display: flex; gap: 12px; flex-wrap: wrap; align-items: center;">
+              <button id="refreshBtn" class="toolbar-btn" title="Refresh Data">
+                <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M23 4v6h-6M1 20v-6h6M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path></svg>
+                Refresh
+              </button>
+              <button id="clearLogsBtn" class="toolbar-btn clear" title="Clear System Logs">
+                <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
+                Clear All
+              </button>
+            </div>
+            
+          </div>
+          <div class="logs-card-wrap">
+            <div style="padding:12px 16px 4px;border-bottom:1px solid var(--border)">
+              <span style="font-family:var(--display);font-size:10px;color:var(--text2);text-transform:uppercase;letter-spacing:.1em">Log Entries</span>
+            </div>
+            <div class="admin-logs-table-wrap">
+              <table>
+                <thead><tr>
+                  <th>Time</th><th>Status</th><th>Type</th><th>IP</th><th>User</th><th>Description</th><th>Action</th>
+                </tr></thead>
+                <tbody id="logTbody"><tr><td colspan="7" class="empty">Loading…</td></tr></tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+
+        <div class="tab-content" id="tab-blocked">
+          <div class="card">
+            <table>
+              <thead><tr><th>IP Address</th><th>Reason</th><th>Blocked Until</th><th>Action</th></tr></thead>
+              <tbody id="blockedTbody"><tr><td colspan="4" class="empty">Loading…</td></tr></tbody>
+            </table>
+          </div>
+        </div>
+
+        <div class="tab-content" id="tab-users">
+          <div class="info-box">This table shows all registered users. Kill sessions, lock accounts, or force password resets during an incident.</div>
+          <div class="card">
+            <table>
+              <thead><tr><th>Username</th><th>Email</th><th>Role</th><th>Failed Logins</th><th>Sessions</th><th>Status</th><th>Action</th></tr></thead>
+              <tbody id="userTbody"><tr><td colspan="7" class="empty">Loading…</td></tr></tbody>
+            </table>
+          </div>
+        </div>
+
+        <div class="tab-content" id="tab-roles">
+          <div class="info-box">
+            <strong>Admin</strong> — Can access the Admin Panel, view all logs, manage users, and assign roles.<br>
+            <strong>Standard User</strong> — Can only access their own dashboard and camera. Cannot access the Admin Panel.
+          </div>
+          <div class="card">
+            <table>
+              <thead><tr><th>Username</th><th>Email</th><th>Current Role</th><th>Change Role To</th><th>Action</th></tr></thead>
+              <tbody id="roleTbody"><tr><td colspan="5" class="empty">Loading…</td></tr></tbody>
+            </table>
+          </div>
+          <div id="roleMsg" style="margin-top:12px"></div>
+        </div>
+        <div class="tab-content" id="tab-security">
+          <div class="security-grid">
+            <div class="security-panel">
+              <h3>Automated Defense</h3>
+              <label><input type="checkbox" id="setAutoBlock" style="width:auto;margin-right:6px"> Auto-block failed logins</label>
+              <label>Failed-login threshold</label><input id="setFailedThreshold" type="number" min="2" max="50">
+              <label>Window seconds</label><input id="setFailedWindow" type="number" min="10" max="3600">
+              <label>Block duration minutes (0 = permanent)</label><input id="setBlockMinutes" type="number" min="0" max="43200">
+              <label>Live refresh seconds (0 = off)</label><input id="setRefreshSeconds" type="number" min="0" max="300">
+              <label><input type="checkbox" id="setHoneypot" style="width:auto;margin-right:6px"> Auto-block honeypot scans</label>
+              <button class="mini-btn green" data-admin-action="save-settings">Save Settings</button>
+            </div>
+            <div class="security-panel">
+              <h3>Emergency Controls</h3>
+              <label><input type="checkbox" id="setMaintenance" style="width:auto;margin-right:6px"> Maintenance mode</label>
+              <label><input type="checkbox" id="setLockdown" style="width:auto;margin-right:6px"> Emergency lockdown whitelist-only mode</label>
+              <button class="mini-btn danger" data-admin-action="save-emergency-settings">Apply Emergency Settings</button>
+            </div>
+            <div class="security-panel">
+              <h3>Manual IP Control</h3>
+              <label>IP address</label><input id="manualIp" placeholder="203.0.113.10">
+              <label>Block duration</label><select id="manualDuration"><option value="1h">1 hour</option><option value="24h">24 hours</option><option value="7d">7 days</option><option value="permanent">Permanent</option></select>
+              <label>Reason</label><input id="manualReason" placeholder="Suspicious activity">
+              <button class="mini-btn danger" data-admin-action="manual-block">Block</button>
+              <button class="mini-btn green" data-admin-action="manual-whitelist">Whitelist</button>
+              <button class="mini-btn" data-admin-action="lookup-ip">Lookup Reputation</button>
+              <button class="mini-btn" data-admin-action="reverse-dns">Reverse DNS</button>
+              <div id="ipIntel" class="info-box" style="margin-top:10px;display:none"></div>
+            </div>
+            <div class="security-panel">
+              <h3>Active Threats</h3>
+              <div id="threatList" class="timeline-box">Loading...</div>
+            </div>
+            <div class="security-panel">
+              <h3>Whitelisted IPs</h3>
+              <div id="whitelistList" class="timeline-box">Loading...</div>
+            </div>
+            <div class="security-panel">
+              <h3>Threat Timeline</h3>
+              <label>IP address</label><input id="timelineIp" placeholder="Select an IP from logs or enter one">
+              <button class="mini-btn" data-admin-action="load-timeline">Load Timeline</button>
+              <button class="mini-btn" data-admin-action="export-timeline">Export CSV</button>
+              <label>Incident note</label><textarea id="incidentNote" rows="3"></textarea>
+              <button class="mini-btn green" data-admin-action="save-incident-note">Add Note</button>
+              <div id="timelineBox" class="timeline-box" style="margin-top:10px">No timeline loaded.</div>
+            </div>
+            <div class="security-panel" id="gracePanel" style="grid-column:1/-1;">
+              <h3 style="display:flex;align-items:center;gap:8px;margin-bottom:4px;">
+                <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M12 2l8 4v6c0 5-3.5 9-8 10-4.5-1-8-5-8-10V6l8-4z"/><polyline points="9 12 11 14 15 10"/></svg>
+                Admin Grace — Lockout Protection
+              </h3>
+              <div class="info-box" style="margin-bottom:14px;font-size:.8rem;line-height:1.6;">
+                <strong>What is Admin Grace?</strong> When enabled for an account, that admin will <em>never</em> be blocked by IP rate-limiting or failed-login lockouts — no matter how many times they mistype their password. Perfect for presentations. Only admin-role accounts can be granted grace.
+              </div>
+              <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;">
+                <div>
+                  <div style="font-size:.72rem;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--text2);margin-bottom:8px;">All Admin Accounts</div>
+                  <div id="graceList" style="display:flex;flex-direction:column;gap:6px;">Loading…</div>
+                </div>
+                <div>
+                  <div style="font-size:.72rem;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--green);margin-bottom:8px;">
+                    <svg width="11" height="11" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24" style="vertical-align:middle;margin-right:3px"><path d="M12 2l8 4v6c0 5-3.5 9-8 10-4.5-1-8-5-8-10V6l8-4z"/><polyline points="9 12 11 14 15 10"/></svg>
+                    Protected Accounts
+                  </div>
+                  <div id="graceActiveList" style="display:flex;flex-direction:column;gap:6px;"></div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div> </div> <script nonce="{{ g.csp_nonce }}">
+let allLogs=[], allBlocked=[], allUsers=[], allWhitelist=[], allThreats=[], securitySettings={}, refreshTimer=null;
+
+function getCsrfToken(){
+  return document.cookie.match(/csrf_token=([^;]+)/)?.[1] || '';
+}
+
+function switchTab(name){
+  document.querySelectorAll('.tab').forEach(t=>t.classList.toggle('active', t.dataset.tab===name));
+  document.querySelectorAll('.tab-content').forEach(c=>c.classList.remove('active'));
+  document.getElementById('tab-'+name).classList.add('active');
+}
+
+function esc(s){ const d=document.createElement('div'); d.textContent=String(s||''); return d.innerHTML; }
+function fmt(ts){
+  if(!ts)return'—';
+  const d=new Date(ts.endsWith('Z')?ts:ts+'Z');
+  return d.toLocaleString(undefined,{year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',second:'2-digit',hour12:false});
+}
+
+// Updated labels
+const SEV_LABEL = { INFO:'Info', WARNING:'Notice', ALERT:'Alert', CRITICAL:'Critical' };
+function sevBadge(s){ const label = SEV_LABEL[s] || s; return `<span class="sev sev-${s}">${label}</span>`; }
+
+function renderLogs(){
+  const ip  = document.getElementById('filterIP').value.trim().toLowerCase();
+  const sev = document.getElementById('filterSev').value;
+  const user = document.getElementById('filterUser').value;
+  
+  // Updated to recognize "ALL" as a valid bypass filter
+  let rows  = allLogs.filter(l=>
+    (!ip||(l.ip||'').toLowerCase().includes(ip))&&
+    (!sev||sev==='ALL'||l.severity===sev)&&
+    (!user||(l.username||l.user_id||'system')===user)
+  );
+  
+  const tbody=document.getElementById('logTbody');
+  if(!rows.length){tbody.innerHTML='<tr><td colspan="7" class="empty">No logs found.</td></tr>';return;}
+  tbody.innerHTML='';
+  rows.forEach(l=>{
+    const tr=document.createElement('tr');
+    const cells=[
+      {cls:'mono',text:fmt(l.timestamp)},
+      {html:sevBadge(l.severity)},
+      {text:l.event_type},
+      {html:`<span class="ip-tag">${esc(l.ip||'—')}</span>`},
+      {cls:'mono',text:l.username||l.user_id||'system'},
+      {text:l.description},
+      {html:(l.ip && ['WARNING','ALERT','CRITICAL'].includes(l.severity)) ? `<button class="mini-btn danger" data-admin-action="block-ip" data-ip="${esc(l.ip)}">Block</button><button class="mini-btn" data-admin-action="select-timeline" data-ip="${esc(l.ip)}">Timeline</button>` : '—'},
+    ];
+    cells.forEach(c=>{
+      const td=document.createElement('td');
+      if(c.cls) td.className=c.cls;
+      if(c.html) td.innerHTML=c.html; else td.textContent=c.text;
+      tr.appendChild(td);
+    });
+    tbody.appendChild(tr);
+  });
+}
+
+function populateUserFilter() {
+  const menu = document.getElementById('userDropdownMenu');
+  const hiddenInput = document.getElementById('filterUser');
+  const btnText = document.getElementById('userDropdownText');
+  const currentSelection = hiddenInput.value;
+  
+  if (!menu) return;
+  menu.innerHTML = ''; 
+  
+  // Helper function to build beautiful custom dropdown items
+  const createItem = (val, label, subLabel = '', isSystem = false) => {
+    const div = document.createElement('div');
+    div.style.padding = '8px 12px';
+    div.style.cursor = 'pointer';
+    div.style.display = 'flex';
+    div.style.flexDirection = 'column';
+    div.style.borderBottom = '1px solid var(--border)';
+    div.style.transition = 'background 0.2s';
+    
+    const isSelected = (val === currentSelection);
+    if (isSelected) div.style.background = 'rgba(0,120,200,0.08)';
+    
+    div.addEventListener('mouseenter', () => { if(!isSelected) div.style.background = 'rgba(0,120,200,0.03)'; });
+    div.addEventListener('mouseleave', () => { if(!isSelected) div.style.background = 'transparent'; });
+    
+    let color = isSystem ? 'var(--purple)' : 'var(--blue)';
+    
+    div.innerHTML = `
+      <span style="font-size: 0.85rem; font-weight: ${isSelected ? '700' : '600'}; color: ${color}; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${label}</span>
+      ${subLabel ? `<span style="font-size: 0.7rem; color: var(--text2); font-family: var(--mono); margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${subLabel}</span>` : ''}
+    `;
+    
+    div.addEventListener('click', () => {
+      hiddenInput.value = val;
+      btnText.textContent = label;
+      menu.style.display = 'none';
+      populateUserFilter(); // Re-render to update the visual highlights
+      renderLogs(); // Trigger the actual table filter!
+    });
+    menu.appendChild(div);
+  };
+  
+  // Build the list
+  createItem('', 'All Users', 'Show logs from everyone');
+  createItem('system', 'System', 'Auto-generated background events', true);
+  
+  allUsers.forEach(u => {
+    const roleIcon = u.role === 'admin'
+      ? '<span style="color: var(--purple); font-weight: 700;"><svg width="11" height="11" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" style="vertical-align:middle;margin-right:2px; margin-top:-2px;"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path></svg>Admin</span>'
+      : '<span style="color: var(--blue);"><svg width="11" height="11" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" style="vertical-align:middle;margin-right:2px; margin-top:-2px;"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>Guest</span>';
+    createItem(u.username, u.username, `${roleIcon} <span style="opacity:0.5;margin:0 4px;">•</span> ${u.email}`);
+  });
+}
+
+// Function to open/close our new menu
+function toggleUserDropdown() {
+  const menu = document.getElementById('userDropdownMenu');
+  if(menu) menu.style.display = menu.style.display === 'none' ? 'block' : 'none';
+}
+
+// Automatically close the menu if the admin clicks anywhere else on the screen
+document.addEventListener('click', (e) => {
+  const actionBtn = e.target.closest('[data-admin-action]');
+  if (actionBtn) {
+    const action = actionBtn.dataset.adminAction;
+    if (action === 'save-settings') saveSecuritySettings(false);
+    else if (action === 'save-emergency-settings') saveSecuritySettings(true);
+    else if (action === 'toggle-grace'){ const uid=actionBtn.dataset.uid; const en=actionBtn.dataset.enabled==='1'; toggleGrace(uid,en); }
+    else if (action === 'manual-block') blockManualIp();
+    else if (action === 'manual-whitelist') whitelistManualIp();
+    else if (action === 'lookup-ip') lookupIp();
+    else if (action === 'reverse-dns') reverseDns();
+    else if (action === 'load-timeline') loadTimeline();
+    else if (action === 'export-timeline') exportTimeline();
+    else if (action === 'save-incident-note') saveIncidentNote();
+    else if (action === 'block-ip') blockIp(actionBtn.dataset.ip);
+    else if (action === 'select-timeline') selectTimeline(actionBtn.dataset.ip);
+    else if (action === 'remove-whitelist') removeWhitelist(actionBtn.dataset.ip);
+    else if (action === 'user-action') userAction(actionBtn.dataset.userId, actionBtn.dataset.userAction);
+    return;
+  }
+
+  const container = document.getElementById('userFilterContainer');
+  const menu = document.getElementById('userDropdownMenu');
+  if (container && menu && !container.contains(e.target)) {
+    menu.style.display = 'none';
+  }
+});
+
+function renderBlocked(){
+  const tbody=document.getElementById('blockedTbody');
+  if(!allBlocked.length){tbody.innerHTML='<tr><td colspan="4" class="empty"><svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" style="vertical-align:middle;margin-right:5px;color:var(--green)"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path><polyline points="22 4 12 14.01 9 11.01"></polyline></svg>No blocked IPs</td></tr>';return;}
+  tbody.innerHTML='';
+  allBlocked.forEach(b=>{
+    const tr=document.createElement('tr');
+    const tdIp=document.createElement('td');
+    const ipSpan=document.createElement('span'); ipSpan.className='ip-tag'; ipSpan.textContent=b.ip_address; tdIp.appendChild(ipSpan);
+    const tdReason=document.createElement('td'); tdReason.textContent=b.reason||'—';
+    const tdUntil=document.createElement('td'); tdUntil.className='mono'; tdUntil.textContent=fmt(b.blocked_until);
+    const tdAction=document.createElement('td');
+    const btn=document.createElement('button'); btn.className='unblock-btn'; 
+    btn.innerHTML='<svg width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M11 17l-5-5 5-5M18 17l-5-5 5-5"/></svg>'; 
+    btn.style.display='inline-flex'; btn.style.alignItems='center'; btn.title='Unblock IP';
+    btn.addEventListener('click',()=>unblock(b.ip_address)); tdAction.appendChild(btn);
+    [tdIp,tdReason,tdUntil,tdAction].forEach(td=>tr.appendChild(td)); tbody.appendChild(tr);
+  });
+}
+
+function renderUsers(){
+  const tbody=document.getElementById('userTbody');
+  if(!allUsers.length){tbody.innerHTML='<tr><td colspan="7" class="empty">No users found.</td></tr>';return;}
+  tbody.innerHTML='';
+  allUsers.forEach(u=>{
+    const tr=document.createElement('tr');
+    const tdUser=document.createElement('td'); const strong=document.createElement('strong'); strong.textContent=u.username; tdUser.appendChild(strong);
+    const tdEmail=document.createElement('td'); tdEmail.textContent=u.email;
+    const tdRole=document.createElement('td');
+    const roleBadge=document.createElement('span'); roleBadge.className=u.role==='admin'?'role-badge-admin':'role-badge-user'; roleBadge.textContent=u.role==='admin'?'Admin':'Guest'; tdRole.appendChild(roleBadge);
+    const tdFailed=document.createElement('td'); tdFailed.textContent=u.failed_attempts; if(u.failed_attempts>0) tdFailed.style.color='var(--amber)';
+    const tdSessions=document.createElement('td'); tdSessions.textContent=u.active_sessions || 0;
+    const tdActive=document.createElement('td');
+    if(u.is_active){
+      tdActive.innerHTML=`<span style="background:rgba(16,185,129,.15);color:#10b981;padding:4px 10px;border-radius:99px;font-size:0.7rem;font-weight:800;letter-spacing:0.04em;">ACTIVE</span>${u.must_reset_password?' <span class="sev sev-WARNING">RESET</span>':''}`;
+    } else {
+      tdActive.innerHTML='<span style="background:rgba(239,68,68,.15);color:#ef4444;padding:4px 10px;border-radius:99px;font-size:0.7rem;font-weight:800;letter-spacing:0.04em;">INACTIVE</span>';
+    }
+    const tdAction=document.createElement('td');
+    tdAction.innerHTML = `<button class="mini-btn warn" data-admin-action="user-action" data-user-id="${esc(u.id)}" data-user-action="kill_sessions">Kill Session</button><button class="mini-btn ${u.is_active?'danger':'green'}" data-admin-action="user-action" data-user-id="${esc(u.id)}" data-user-action="${u.is_active?'lock':'unlock'}">${u.is_active?'Lock':'Unlock'}</button><button class="mini-btn" data-admin-action="user-action" data-user-id="${esc(u.id)}" data-user-action="force_password_reset">Force Reset</button>`;
+    [tdUser,tdEmail,tdRole,tdFailed,tdSessions,tdActive,tdAction].forEach(td=>tr.appendChild(td)); tbody.appendChild(tr);
+  });
+}
+
+function renderRoles(){
+  const tbody=document.getElementById('roleTbody');
+  if(!allUsers.length){tbody.innerHTML='<tr><td colspan="5" class="empty">No users found.</td></tr>';return;}
+  tbody.innerHTML='';
+  const currentAdmin='{{ user.username }}';
+  allUsers.forEach(u=>{
+    const tr=document.createElement('tr'), isSelf=(u.username===currentAdmin);
+    const tdUser=document.createElement('td'); tdUser.innerHTML=`<strong>${esc(u.username)}</strong>${isSelf?' <span style="font-size:.7rem;color:var(--text2)">(you)</span>':''}`;
+    const tdEmail=document.createElement('td'); tdEmail.textContent=u.email;
+    const tdCurrent=document.createElement('td');
+    const roleBadge=document.createElement('span'); roleBadge.className=u.role==='admin'?'role-badge-admin':'role-badge-user'; roleBadge.textContent=u.role==='admin'?'Admin':'Guest'; roleBadge.id=`roleBadge_${u.id}`; tdCurrent.appendChild(roleBadge);
+    const tdSelect=document.createElement('td');
+    if(isSelf){
+      const note=document.createElement('span'); note.style.color='var(--text2)'; note.style.fontSize='.8rem'; note.textContent='Cannot change own role'; tdSelect.appendChild(note);
+    } else {
+      const sel=document.createElement('select'); sel.className='role-select'; sel.id=`roleSelect_${u.id}`;
+      const optAdmin=document.createElement('option'); optAdmin.value='admin'; optAdmin.textContent='Admin'; if(u.role==='admin') optAdmin.selected=true;
+      const optUser=document.createElement('option'); optUser.value='user'; optUser.textContent='Guest'; if(u.role==='user') optUser.selected=true;
+      sel.appendChild(optAdmin); sel.appendChild(optUser); tdSelect.appendChild(sel);
+    }
+    const tdAction=document.createElement('td');
+    if(!isSelf){
+      const btn=document.createElement('button'); btn.className='save-role-btn'; btn.textContent='Save Role'; btn.addEventListener('click',()=>saveRole(u.id, u.username, btn)); tdAction.appendChild(btn);
+    } else { tdAction.textContent='—'; }
+    [tdUser,tdEmail,tdCurrent,tdSelect,tdAction].forEach(td=>tr.appendChild(td)); tbody.appendChild(tr);
+  });
+}
+
+async function saveRole(userId, username, btn){
+  const sel=document.getElementById(`roleSelect_${userId}`); if(!sel) return;
+  const newRole=sel.value;
+  if(!confirm(`Change ${username}'s role to "${newRole==='admin'?'Admin':'Guest'}"?`)) return;
+  btn.classList.add('saving'); btn.disabled=true; btn.textContent='Saving…';
+  try {
+    const r=await fetch('/api/admin/users/role',{ method:'POST', credentials:'include', headers:{'Content-Type':'application/json', 'X-CSRFToken': getCsrfToken()}, body:JSON.stringify({user_id:userId, role:newRole}) });
+    const data=await r.json();
+    if(r.ok && data.ok){
+      btn.classList.remove('saving'); btn.classList.add('saved'); btn.textContent='✓ Saved';
+      const badge=document.getElementById(`roleBadge_${userId}`);
+      if(badge){ badge.className=newRole==='admin'?'role-badge-admin':'role-badge-user'; badge.textContent=newRole==='admin'?'Admin':'Guest'; }
+      const u=allUsers.find(u=>u.id===userId); if(u) u.role=newRole;
+      renderUsers();
+      showRoleMsg(`✓ ${username}'s role changed to "${newRole==='admin'?'Admin':'Guest'}" successfully.`, 'ok');
+      setTimeout(()=>{ btn.classList.remove('saved'); btn.textContent='Save Role'; btn.disabled=false; },3000);
+    } else {
+      btn.classList.remove('saving'); btn.textContent='Save Role'; btn.disabled=false;
+      showRoleMsg('Error: '+(data.error||'Could not save role.'), 'err');
+    }
+  } catch(e){
+    btn.classList.remove('saving'); btn.textContent='Save Role'; btn.disabled=false;
+    showRoleMsg('Network error — please try again.', 'err');
+  }
+}
+
+function showRoleMsg(msg, type){
+  const box=document.getElementById('roleMsg'); box.className=type==='ok'?'ok-box':'err-box'; box.textContent=msg;
+  setTimeout(()=>{ box.textContent=''; box.className=''; },5000);
+}
+
+function renderGrace(){
+  const admins = allUsers.filter(u => u.role === 'admin');
+  const graceList = document.getElementById('graceList');
+  const graceActiveList = document.getElementById('graceActiveList');
+  if(!graceList || !graceActiveList) return;
+
+  if(!admins.length){
+    graceList.innerHTML='<em style="color:var(--text2);font-size:.8rem">No admin accounts found.</em>';
+    graceActiveList.innerHTML='<em style="color:var(--text2);font-size:.8rem">None.</em>';
+    return;
+  }
+
+  // All admins list with clear Enable/Disable buttons
+  graceList.innerHTML = admins.map(u => {
+    const on = !!u.admin_grace;
+    return `<div style="display:flex;align-items:center;justify-content:space-between;gap:8px;background:${on?'rgba(16,185,129,.07)':'rgba(0,0,0,.025)'};border:1px solid ${on?'rgba(16,185,129,.25)':'var(--border2)'};border-radius:8px;padding:8px 10px;">
+      <div style="min-width:0">
+        <div style="font-weight:700;font-size:.83rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(u.username)}</div>
+        <div style="font-size:.7rem;color:var(--text2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(u.email)}</div>
+      </div>
+      <div style="flex-shrink:0">
+        ${on
+          ? `<button class="mini-btn danger" data-admin-action="toggle-grace" data-uid="${esc(u.id)}" data-enabled="0" style="white-space:nowrap;padding:5px 10px">
+               <svg width="11" height="11" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24" style="vertical-align:middle;margin-right:3px"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>Disable Grace
+             </button>`
+          : `<button class="mini-btn green" data-admin-action="toggle-grace" data-uid="${esc(u.id)}" data-enabled="1" style="white-space:nowrap;padding:5px 10px">
+               <svg width="11" height="11" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24" style="vertical-align:middle;margin-right:3px"><path d="M12 2l8 4v6c0 5-3.5 9-8 10-4.5-1-8-5-8-10V6l8-4z"/><polyline points="9 12 11 14 15 10"/></svg>Enable Grace
+             </button>`
+        }
+      </div>
+    </div>`;
+  }).join('');
+
+  // Protected accounts summary panel
+  const graced = admins.filter(u => !!u.admin_grace);
+  if(!graced.length){
+    graceActiveList.innerHTML=`<div style="border:1px dashed var(--border2);border-radius:8px;padding:14px 10px;text-align:center;color:var(--text2);font-size:.78rem">
+      <svg width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24" style="display:block;margin:0 auto 6px;opacity:.4"><path d="M12 2l8 4v6c0 5-3.5 9-8 10-4.5-1-8-5-8-10V6l8-4z"/></svg>
+      No accounts protected yet.<br>Enable grace on an admin to protect them from lockout.
+    </div>`;
+  } else {
+    graceActiveList.innerHTML = graced.map(u => `
+      <div style="display:flex;align-items:center;gap:8px;background:rgba(16,185,129,.07);border:1px solid rgba(16,185,129,.3);border-radius:8px;padding:8px 10px;">
+        <svg width="14" height="14" fill="none" stroke="var(--green)" stroke-width="2.5" viewBox="0 0 24 24" style="flex-shrink:0"><path d="M12 2l8 4v6c0 5-3.5 9-8 10-4.5-1-8-5-8-10V6l8-4z"/><polyline points="9 12 11 14 15 10"/></svg>
+        <div style="min-width:0;flex:1">
+          <div style="font-weight:700;font-size:.83rem;color:var(--green)">${esc(u.username)}</div>
+          <div style="font-size:.7rem;color:var(--text2)">${esc(u.email)}</div>
+        </div>
+        <span style="font-size:.65rem;font-weight:700;color:var(--green);background:rgba(16,185,129,.15);padding:2px 7px;border-radius:99px;white-space:nowrap">PROTECTED</span>
+      </div>`).join('');
+  }
+}
+
+async function toggleGrace(userId, enable){
+  await postJson('/api/admin/users/grace',{user_id:userId,enabled:enable});
+  await loadAll();
+}
+
+function renderSecurity(){
+  document.getElementById('setAutoBlock').checked = !!securitySettings.auto_block_enabled;
+  document.getElementById('setFailedThreshold').value = securitySettings.failed_login_threshold ?? 5;
+  document.getElementById('setFailedWindow').value = securitySettings.failed_login_window ?? 60;
+  document.getElementById('setBlockMinutes').value = securitySettings.auto_block_minutes ?? 60;
+  document.getElementById('setRefreshSeconds').value = securitySettings.live_refresh_seconds ?? 30;
+  document.getElementById('setHoneypot').checked = !!securitySettings.honeypot_auto_block;
+  document.getElementById('setMaintenance').checked = !!securitySettings.maintenance_mode;
+  document.getElementById('setLockdown').checked = !!securitySettings.lockdown_mode;
+  document.getElementById('threatList').innerHTML = allThreats.length ? allThreats.map(t=>`<div><span class="ip-tag">${esc(t.ip)}</span> ${t.events} events <button class="mini-btn" data-admin-action="select-timeline" data-ip="${esc(t.ip)}">Timeline</button><button class="mini-btn danger" data-admin-action="block-ip" data-ip="${esc(t.ip)}">Block</button></div>`).join('') : 'No active suspicious IPs.';
+  document.getElementById('whitelistList').innerHTML = allWhitelist.length ? allWhitelist.map(w=>`<div><span class="ip-tag">${esc(w.ip_address)}</span> ${esc(w.reason||'')} <button class="mini-btn danger" data-admin-action="remove-whitelist" data-ip="${esc(w.ip_address)}">Remove</button></div>`).join('') : 'No whitelisted IPs.';
+  scheduleRefresh();
+  renderGrace();
+}
+
+function scheduleRefresh(){
+  if(refreshTimer) clearInterval(refreshTimer);
+  const seconds = Number(securitySettings.live_refresh_seconds ?? 30);
+  if(seconds > 0) refreshTimer = setInterval(loadAll, seconds * 1000);
+}
+
+async function postJson(url, body){
+  const r = await fetch(url,{method:'POST',credentials:'include',headers:{'Content-Type':'application/json','X-CSRFToken':getCsrfToken()},body:JSON.stringify(body||{})});
+  const data = await r.json().catch(()=>({}));
+  if(!r.ok) throw new Error(data.error || 'Request failed');
+  return data;
+}
+
+async function blockIp(ip){
+  if(!ip) return;
+  const duration = prompt(`Block ${ip} for: 1h, 24h, 7d, permanent`, '1h') || '1h';
+  await postJson('/api/admin/block',{ip,duration,reason:'Blocked from admin log row'});
+  loadAll();
+}
+
+async function blockManualIp(){
+  await postJson('/api/admin/block',{ip:document.getElementById('manualIp').value,duration:document.getElementById('manualDuration').value,reason:document.getElementById('manualReason').value||'Manual admin block'});
+  loadAll();
+}
+
+async function whitelistManualIp(){
+  await postJson('/api/admin/whitelist',{ip:document.getElementById('manualIp').value,reason:document.getElementById('manualReason').value||'Trusted IP'});
+  loadAll();
+}
+
+async function removeWhitelist(ip){
+  if(!confirm(`Remove ${ip} from whitelist?`)) return;
+  await postJson('/api/admin/whitelist/remove',{ip});
+  loadAll();
+}
+
+async function userAction(userId, action){
+  if(!confirm(`Apply ${action.replaceAll('_',' ')}?`)) return;
+  await postJson('/api/admin/users/action',{user_id:userId,action});
+  loadAll();
+}
+
+async function saveSecuritySettings(emergency=false){
+  if(emergency && !confirm('Apply emergency security controls?')) return;
+  securitySettings = (await postJson('/api/admin/security/settings',{
+    auto_block_enabled:document.getElementById('setAutoBlock').checked,
+    failed_login_threshold:Number(document.getElementById('setFailedThreshold').value),
+    failed_login_window:Number(document.getElementById('setFailedWindow').value),
+    auto_block_minutes:Number(document.getElementById('setBlockMinutes').value),
+    live_refresh_seconds:Number(document.getElementById('setRefreshSeconds').value),
+    honeypot_auto_block:document.getElementById('setHoneypot').checked,
+    maintenance_mode:document.getElementById('setMaintenance').checked,
+    lockdown_mode:document.getElementById('setLockdown').checked,
+  })).settings;
+  renderSecurity();
+}
+
+function selectTimeline(ip){
+  switchTab('security');
+  document.getElementById('timelineIp').value = ip;
+  document.getElementById('manualIp').value = ip;
+  loadTimeline();
+}
+
+async function loadTimeline(){
+  const ip = document.getElementById('timelineIp').value.trim();
+  if(!ip) return;
+  const data = await fetch(`/api/admin/timeline/${encodeURIComponent(ip)}`,{credentials:'include'}).then(r=>r.json());
+  document.getElementById('timelineBox').innerHTML = [...(data.logs||[]).map(l=>`<div><strong>${fmt(l.timestamp)}</strong> ${sevBadge(l.severity)} ${esc(l.event_type)} - ${esc(l.description)}</div>`), ...(data.notes||[]).map(n=>`<div><strong>${fmt(n.created_at)}</strong> NOTE - ${esc(n.note)}</div>`)].join('') || 'No entries.';
+}
+
+async function saveIncidentNote(){
+  await postJson('/api/admin/incident-note',{ip:document.getElementById('timelineIp').value,note:document.getElementById('incidentNote').value});
+  document.getElementById('incidentNote').value='';
+  loadTimeline();
+}
+
+function exportTimeline(){
+  const ip = document.getElementById('timelineIp').value.trim();
+  if(ip) window.location.href = `/api/admin/export/${encodeURIComponent(ip)}`;
+}
+
+async function lookupIp(){
+  const ip = document.getElementById('manualIp').value.trim();
+  const box = document.getElementById('ipIntel');
+  box.style.display='block'; box.textContent='Loading...';
+  const data = await fetch(`/api/admin/ip-reputation/${encodeURIComponent(ip)}`,{credentials:'include'}).then(r=>r.json());
+  const r = data.result?.data;
+  box.textContent = r ? `Abuse score: ${r.abuseConfidenceScore}; country: ${r.countryCode||'n/a'}; ISP: ${r.isp||'n/a'}; reports: ${r.totalReports}` : (data.message || data.error || 'No result');
+}
+
+async function reverseDns(){
+  const ip = document.getElementById('manualIp').value.trim();
+  const data = await fetch(`/api/admin/reverse-dns/${encodeURIComponent(ip)}`,{credentials:'include'}).then(r=>r.json());
+  const box = document.getElementById('ipIntel');
+  box.style.display='block'; box.textContent = data.hostname ? `Reverse DNS: ${data.hostname}` : 'No reverse DNS result.';
+}
+
+async function loadAll(){
+  try{
+    const [logsRes,blockedRes,statsRes,usersRes,settingsRes,whitelistRes,threatsRes]=await Promise.all([
+      fetch('/api/admin/logs',{credentials:'include'}),
+      fetch('/api/admin/blocked',{credentials:'include'}),
+      fetch('/api/admin/stats',{credentials:'include'}),
+      fetch('/api/admin/users',{credentials:'include'}),
+      fetch('/api/admin/security/settings',{credentials:'include'}),
+      fetch('/api/admin/whitelist',{credentials:'include'}),
+      fetch('/api/admin/threats',{credentials:'include'}),
+    ]);
+    allLogs    = await logsRes.json();
+    allBlocked = await blockedRes.json();
+    allUsers   = await usersRes.json();
+    securitySettings = await settingsRes.json();
+    allWhitelist = await whitelistRes.json();
+    allThreats = await threatsRes.json();
+    const stats= await statsRes.json();
+    document.getElementById('statUsers').textContent  = stats.total_users;
+    document.getElementById('statFailed').textContent = stats.failed_logins_24h;
+    document.getElementById('statThreats').textContent = stats.active_threats;
+    document.getElementById('statBlocked').textContent= stats.blocked_ips;
+    document.getElementById('statLogs').textContent   = stats.total_logs;
+    
+    populateUserFilter();
+
+    renderLogs();
+    renderBlocked();
+    renderUsers();
+    renderRoles();
+    renderSecurity();
+  }catch(e){console.error(e);}
+}
+
+async function clearAllLogs(){
+  if(!confirm('Clear ALL system logs? This cannot be undone.'))return;
+  const r=await fetch('/api/admin/logs/clear-all',{method:'POST',credentials:'include',headers:{'X-CSRFToken': getCsrfToken()}});
+  if(r.ok){allLogs=[];renderLogs();loadAll();}else{alert('Failed to clear logs.');}
+}
+
+async function unblock(ip){
+  if(!confirm(`Unblock ${ip}?`))return;
+  await fetch('/api/admin/unblock',{method:'POST',credentials:'include', headers:{'Content-Type':'application/json', 'X-CSRFToken': getCsrfToken()},body:JSON.stringify({ip})});
+  loadAll();
+}
+
+document.addEventListener("DOMContentLoaded", () => {
+  // Force-clear the IP filter — browsers ignore autocomplete attributes and autofill it anyway
+  const filterIPEl = document.getElementById('filterIP');
+  if (filterIPEl) {
+    filterIPEl.value = '';
+    // Chrome autofills AFTER DOMContentLoaded — use timeouts to catch it
+    setTimeout(() => { filterIPEl.value = ''; }, 100);
+    setTimeout(() => { filterIPEl.value = ''; }, 500);
+    setTimeout(() => { filterIPEl.value = ''; renderLogs(); }, 1000);
+  }
+
+  // Tab buttons
+  document.querySelectorAll('.tab').forEach(btn => {
+    btn.addEventListener('click', () => switchTab(btn.dataset.tab));
+  });
+
+  // Filter inputs
+  document.getElementById('filterIP').addEventListener('input', renderLogs);
+  document.getElementById('filterSev').addEventListener('change', renderLogs);
+
+  // Wire up custom severity dropdown to sync with the hidden native select
+  (function() {
+    const sevBtn = document.getElementById('sevDropdownBtn');
+    const sevMenu = document.getElementById('sevDropdownMenu');
+    const sevText = document.getElementById('sevDropdownText');
+    const sevSelect = document.getElementById('filterSev');
+    if (!sevBtn || !sevMenu) return;
+
+    sevBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const isOpen = sevMenu.style.display !== 'none';
+      sevMenu.style.display = isOpen ? 'none' : 'block';
+      sevBtn.style.borderColor = isOpen ? 'var(--border2)' : 'var(--blue)';
+      sevBtn.style.color = isOpen ? 'var(--text)' : 'var(--blue)';
+    });
+
+    sevMenu.querySelectorAll('.sev-option').forEach(opt => {
+      opt.addEventListener('mouseenter', () => opt.style.background = 'rgba(0,112,204,0.06)');
+      opt.addEventListener('mouseleave', () => {
+        opt.style.background = opt.dataset.value === sevSelect.value ? 'rgba(0,112,204,0.06)' : '';
+      });
+      opt.addEventListener('click', () => {
+        const val = opt.dataset.value;
+        sevSelect.value = val;
+        sevText.textContent = opt.dataset.label || opt.textContent.trim();
+        // Highlight selected
+        sevMenu.querySelectorAll('.sev-option').forEach(o => o.style.background = '');
+        opt.style.background = 'rgba(0,112,204,0.06)';
+        sevMenu.style.display = 'none';
+        sevBtn.style.borderColor = 'var(--border2)';
+        sevBtn.style.color = 'var(--text)';
+        renderLogs();
+      });
+    });
+
+    document.addEventListener('click', (e) => {
+      if (!sevBtn.contains(e.target) && !sevMenu.contains(e.target)) {
+        sevMenu.style.display = 'none';
+        sevBtn.style.borderColor = 'var(--border2)';
+        sevBtn.style.color = 'var(--text)';
+      }
+    });
+  })();
+
+  // Refresh & Clear buttons
+  document.getElementById('refreshBtn').addEventListener('click', loadAll);
+  document.getElementById('clearLogsBtn').addEventListener('click', clearAllLogs);
+
+  // User dropdown button
+  document.getElementById('userDropdownBtn').addEventListener('click', toggleUserDropdown);
+
+  // Active Threats -> Security Tab
+  const statThreatsEl = document.getElementById('statThreats');
+  if (statThreatsEl && statThreatsEl.parentElement) {
+    statThreatsEl.parentElement.addEventListener('click', () => {
+      switchTab('security');
+      // Scroll directly to the Active Threats panel within the security tab
+      requestAnimationFrame(() => {
+        const threatList = document.getElementById('threatList');
+        if (threatList) {
+          threatList.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          // Briefly highlight the panel to confirm navigation
+          const panel = threatList.closest('.security-panel') || threatList;
+          panel.style.transition = 'box-shadow 0.3s ease, outline 0.3s ease';
+          panel.style.outline = '2px solid var(--red)';
+          panel.style.outlineOffset = '4px';
+          setTimeout(() => { panel.style.outline = ''; panel.style.outlineOffset = ''; }, 1800);
+        }
+      });
+    });
+  }
+
+  // Total Users -> Users Tab
+  document.getElementById('statUsers').parentElement.addEventListener('click', () => {
+    switchTab('users');
+  });
+
+  // Blocked IPs -> Blocked Tab
+  document.getElementById('statBlocked').parentElement.addEventListener('click', () => {
+    switchTab('blocked');
+  });
+
+  // Total Logs -> Logs Tab
+  document.getElementById('statLogs').parentElement.addEventListener('click', () => {
+    switchTab('logs');
+    document.getElementById('filterSev').value = 'ALL';
+    const sevText = document.getElementById('sevDropdownText');
+    if (sevText) sevText.textContent = 'All Severities';
+    renderLogs();
+  });
+
+  // Failed Logins -> Logs Tab (Filtered to Notice/Warning)
+  document.getElementById('statFailed').parentElement.addEventListener('click', () => {
+    switchTab('logs');
+    const sevFilter = document.getElementById('filterSev');
+    if (sevFilter) {
+      sevFilter.value = 'WARNING';
+      const sevText = document.getElementById('sevDropdownText');
+      if (sevText) sevText.textContent = 'Notice';
+      renderLogs();
+    }
+  });
+
+  // Dark Mode toggle
+  (function() {
+    const DARK_KEY = 'cctv_dark_mode';
+    const toggleRow = document.getElementById('adminDarkModeToggle');
+    const icon = document.getElementById('adminDarkModeIcon');
+    const label = document.getElementById('adminDarkModeLabel');
+    function applyDark(on) {
+      document.documentElement.classList.toggle('dark-mode', on);
+      if (icon) {
+        icon.innerHTML = on
+          ? '<circle cx="12" cy="12" r="5"></circle><line x1="12" y1="1" x2="12" y2="3"></line><line x1="12" y1="21" x2="12" y2="23"></line><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line><line x1="1" y1="12" x2="3" y2="12"></line><line x1="21" y1="12" x2="23" y2="12"></line><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line>'
+          : '<path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path>';
+      }
+      if (label) label.textContent = on ? 'Light Mode' : 'Dark Mode';
+    }
+    applyDark(localStorage.getItem(DARK_KEY) === '1');
+    if (toggleRow) {
+      toggleRow.addEventListener('click', function() {
+        const on = !document.documentElement.classList.contains('dark-mode');
+        localStorage.setItem(DARK_KEY, on ? '1' : '0');
+        applyDark(on);
+      });
+    }
+  })();
+
+  // Load data once DOM is ready; refresh interval is controlled by Security settings.
+  loadAll();
+});
+</script>
+
+
+  <!-- ── Profile Modal ── -->
+  <div class="profile-modal-overlay" id="profileModalOverlay">
+    <div class="profile-modal">
+      <div class="profile-modal-head">
+        <div class="profile-modal-avatar" id="modalAvatarInitials">{{ user.username[:2].upper() }}</div>
+        <div class="profile-modal-info">
+          <div class="profile-modal-name" id="modalProfileName">{{ user.username }}</div>
+          <div class="profile-modal-role {{ 'is-admin' if user.role == 'admin' else 'is-user' }}" id="modalProfileRole">{{ 'Admin' if user.role == 'admin' else 'User' }}</div>
+        </div>
+        <button class="profile-modal-close" id="closeProfileModal">
+          <svg width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+        </button>
+      </div>
+      <div class="profile-modal-body">
+        <!-- Change Nickname -->
+        <div class="profile-section">
+          <div class="profile-section-title">
+            <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>
+            Display Nickname
+          </div>
+          <div class="field-group" style="margin-bottom:6px">
+            <input class="field-input" id="modalNicknameInput" type="text" value="{{ user.username }}" placeholder="3–16 chars: letters, numbers, _ . #" autocomplete="off" maxlength="16">
+          </div>
+          <div class="pw-rules" id="nickRules" style="margin:0 0 8px;">
+            <div class="pw-rule" id="nickRuleLen"><span class="rule-icon">✓</span><span>3–16 characters</span></div>
+            <div class="pw-rule" id="nickRuleChars"><span class="rule-icon">✓</span><span>Letters, numbers, _ . # only</span></div>
+          </div>
+          <div class="ok-box hidden" id="modalNickOk" style="margin:0 0 8px;"></div>
+          <div class="err-box hidden" id="modalNickErr" style="margin:0 0 8px;"></div>
+          <button class="btn-primary" id="modalSaveNickBtn" style="margin:0;">Save Nickname</button>
+        </div>
+        <!-- Change Password -->
+        <div class="profile-section">
+          <div class="profile-section-title">
+            <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect><path d="M7 11V7a5 5 0 0 1 10 0v4"></path></svg>
+            Change Password
+          </div>
+          <div class="field-group" style="margin-bottom:8px">
+            <label class="field-label">Current Password</label>
+            <input class="field-input" id="modalOldPw" type="password" placeholder="••••••••" autocomplete="current-password">
+          </div>
+          <div class="field-group" style="margin-bottom:8px">
+            <label class="field-label">New Password</label>
+            <input class="field-input" id="modalNewPw" type="password" placeholder="Min 8 characters" autocomplete="new-password">
+          </div>
+          <div class="pw-rules" id="pwRules" style="margin:0 0 8px;">
+            <div class="pw-rule" id="pwRuleLen"><span class="rule-icon">✓</span><span>At least 8 characters</span></div>
+            <div class="pw-rule" id="pwRuleUpper"><span class="rule-icon">✓</span><span>One uppercase letter</span></div>
+            <div class="pw-rule" id="pwRuleNum"><span class="rule-icon">✓</span><span>One number</span></div>
+            <div class="pw-rule" id="pwRuleSym"><span class="rule-icon">✓</span><span>One special character</span></div>
+          </div>
+          <div class="field-group" style="margin-bottom:10px">
+            <label class="field-label">Confirm New Password</label>
+            <input class="field-input" id="modalConfirmPw" type="password" placeholder="Min 8 characters" autocomplete="new-password">
+          </div>
+          <div id="pwMatchHint" style="font-size:11px;margin:0 0 8px;color:var(--text2);display:none;"></div>
+          <div class="ok-box hidden" id="modalPwOk" style="margin:0 0 8px;"></div>
+          <div class="err-box hidden" id="modalPwErr" style="margin:0 0 8px;"></div>
+          <button class="btn-primary" id="modalChangePwBtn" style="margin:0;">Update Password</button>
+        </div>
+        <!-- Delete Account -->
+        <div class="profile-section" style="border-top:1px solid rgba(214,25,74,.2);margin-top:4px;padding-top:16px;">
+          <div class="profile-section-title" style="color:var(--red);">
+            <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"></path><path d="M10 11v6"></path><path d="M14 11v6"></path><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"></path></svg>
+            Delete Account
+          </div>
+          <p style="font-size:12px;color:var(--text2);margin:0 0 10px;line-height:1.6;">
+            This permanently deletes your account, camera, and all associated data. <strong style="color:var(--red);">This cannot be undone.</strong>
+          </p>
+          <div id="deleteConfirmStep" style="display:none;">
+            <div class="field-group" style="margin-bottom:10px">
+              <label class="field-label">Confirm your password</label>
+              <input class="field-input" id="modalDeletePw" type="password" placeholder="••••••••">
+            </div>
+            <div class="err-box hidden" id="modalDeleteErr" style="margin:0 0 8px;"></div>
+            <div style="display:flex;gap:8px;">
+              <button id="modalConfirmDeleteBtn" style="flex:1;padding:10px;border-radius:8px;border:none;background:var(--red);color:#fff;font-size:13px;font-weight:600;cursor:pointer;letter-spacing:.04em;">Yes, Delete My Account</button>
+              <button id="modalCancelDeleteBtn" style="padding:10px 14px;border-radius:8px;border:1px solid var(--border2);background:transparent;color:var(--text2);font-size:13px;cursor:pointer;">Cancel</button>
+            </div>
+          </div>
+          <button id="modalDeleteAccountBtn" class="btn-primary" style="margin:0;background:rgba(214,25,74,.08);color:var(--red);border:1px solid rgba(214,25,74,.35);">Delete My Account</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+<script nonce="{{ g.csp_nonce }}">
+// ── Admin Profile Modal ──
+(function(){
+  function getCsrfToken(){ return document.cookie.match(/csrf_token=([^;]+)/)?.[1]||''; }
+
+  // Open/close
+  var overlay  = document.getElementById('profileModalOverlay');
+  var openBtn  = document.getElementById('openProfileModal');
+  var closeBtn = document.getElementById('closeProfileModal');
+  function resetProfileValidation(){
+    ['nickRuleLen','nickRuleChars','pwRuleLen','pwRuleUpper','pwRuleNum','pwRuleSym'].forEach(function(id){
+      var row=document.getElementById(id); if(!row)return;
+      row.classList.remove('met','unmet');
+      var icon=row.querySelector('.rule-icon');
+      if(icon){icon.style.color='var(--text2)';icon.style.borderColor='var(--text2)';icon.style.background='';}
+    });
+    var hint=document.getElementById('pwMatchHint'); if(hint)hint.style.display='none';
+    var np=document.getElementById('modalNewPw'); if(np)np.value='';
+    var cp=document.getElementById('modalConfirmPw'); if(cp)cp.value='';
+    var delStep=document.getElementById('deleteConfirmStep'); if(delStep)delStep.style.display='none';
+    var delBtn=document.getElementById('modalDeleteAccountBtn'); if(delBtn)delBtn.style.display='';
+    var delPw=document.getElementById('modalDeletePw'); if(delPw)delPw.value='';
+    var delErr=document.getElementById('modalDeleteErr'); if(delErr)delErr.classList.add('hidden');
+  }
+  if (openBtn && overlay)  openBtn.addEventListener('click', function(){ overlay.classList.add('open'); resetProfileValidation(); });
+  if (closeBtn && overlay) closeBtn.addEventListener('click', function(){ overlay.classList.remove('open'); });
+  if (overlay) overlay.addEventListener('click', function(e){ if(e.target===overlay) overlay.classList.remove('open'); });
+
+  // Sidebar & modal live sync references
+  var sidebarName   = document.getElementById('sidebarProfileName');
+  var modalName     = document.getElementById('modalProfileName');
+  var sidebarAvatar = document.getElementById('sidebarAvatarInitials');
+  var modalAvatar   = document.getElementById('modalAvatarInitials');
+
+  // Real-time nickname rule helper — matches register.html: gray=default, green=met, red=unmet
+  function setRule(iconId, rowId, state){
+    var row = document.getElementById(rowId);
+    if (!row) return;
+    row.classList.remove('met','unmet');
+    var icon = row.querySelector('.rule-icon');
+    if (state === true) {
+      row.classList.add('met');
+      if (icon) { icon.style.color=''; icon.style.borderColor=''; icon.style.background=''; }
+    } else if (state === false) {
+      row.classList.add('unmet');
+      if (icon) { icon.style.color=''; icon.style.borderColor=''; icon.style.background=''; }
+    } else {
+      if (icon) { icon.style.color='var(--text2)'; icon.style.borderColor='var(--text2)'; icon.style.background=''; }
+    }
+  }
+  var nickInput = document.getElementById('modalNicknameInput');
+  if (nickInput) {
+    nickInput.addEventListener('input', function(){
+      var v = this.value;
+      var typing = v.length > 0;
+      setRule('nickRuleLenIcon','nickRuleLen',   typing ? (v.length>=3 && v.length<=16) : null);
+      setRule('nickRuleCharsIcon','nickRuleChars', typing ? (/^[a-zA-Z0-9_.#]+$/.test(v)) : null);
+    });
+  }
+
+  // Real-time password rules
+  var newPwEl = document.getElementById('modalNewPw');
+  var cfmPwEl = document.getElementById('modalConfirmPw');
+  if (newPwEl) {
+    newPwEl.addEventListener('input', function(){
+      var v = this.value;
+      var typing = v.length > 0;
+      setRule('pwRuleLenIcon','pwRuleLen',   typing ? v.length>=8          : null);
+      setRule('pwRuleUpperIcon','pwRuleUpper', typing ? /[A-Z]/.test(v)    : null);
+      setRule('pwRuleNumIcon','pwRuleNum',   typing ? /[0-9]/.test(v)      : null);
+      setRule('pwRuleSymIcon','pwRuleSym',   typing ? /[^A-Za-z0-9]/.test(v): null);
+      if (cfmPwEl && cfmPwEl.value) checkMatch();
+    });
+  }
+  function checkMatch(){
+    var hint = document.getElementById('pwMatchHint');
+    if (!hint||!newPwEl||!cfmPwEl) return;
+    if (!cfmPwEl.value){ hint.style.display='none'; return; }
+    hint.style.display='';
+    var match = newPwEl.value===cfmPwEl.value;
+    hint.textContent = match ? '✓ Passwords match' : '✗ Passwords do not match';
+    hint.style.color  = match ? 'var(--green)' : 'var(--red)';
+  }
+  if (cfmPwEl) cfmPwEl.addEventListener('input', checkMatch);
+
+  // Save nickname
+  var nickOk  = document.getElementById('modalNickOk');
+  var nickErr = document.getElementById('modalNickErr');
+  var saveBtn = document.getElementById('modalSaveNickBtn');
+  if (saveBtn) saveBtn.addEventListener('click', async function(){
+    var val = (nickInput ? nickInput.value : '').trim();
+    nickOk.classList.add('hidden'); nickErr.classList.add('hidden');
+    if (!val) { nickErr.textContent='Please enter a nickname.'; nickErr.classList.remove('hidden'); return; }
+    if (val.length<3||val.length>16) { nickErr.textContent='Nickname must be 3–16 characters.'; nickErr.classList.remove('hidden'); return; }
+    if (!/^[a-zA-Z0-9_.#]+$/.test(val)) { nickErr.textContent='Only letters, numbers, _ . # allowed.'; nickErr.classList.remove('hidden'); return; }
+    saveBtn.disabled=true;
+    try {
+      var r = await fetch('/api/account/nickname',{method:'POST',credentials:'include',headers:{'Content-Type':'application/json','X-CSRFToken':getCsrfToken()},body:JSON.stringify({nickname:val})});
+      var d = await r.json();
+      if (d.ok) {
+        nickOk.textContent='Nickname updated!'; nickOk.classList.remove('hidden');
+        var initials = val.slice(0,2).toUpperCase();
+        if (sidebarName)   sidebarName.textContent   = val;
+        if (modalName)     modalName.textContent     = val;
+        if (sidebarAvatar) sidebarAvatar.textContent = initials;
+        if (modalAvatar)   modalAvatar.textContent   = initials;
+      } else { nickErr.textContent=d.error||d.message||'Update failed.'; nickErr.classList.remove('hidden'); }
+    } catch(e){ nickErr.textContent='Network error.'; nickErr.classList.remove('hidden'); }
+    saveBtn.disabled=false;
+  });
+
+  // Change password
+  var pwOk      = document.getElementById('modalPwOk');
+  var pwErr     = document.getElementById('modalPwErr');
+  var changePwBtn = document.getElementById('modalChangePwBtn');
+  if (changePwBtn) changePwBtn.addEventListener('click', async function(){
+    pwOk.classList.add('hidden'); pwErr.classList.add('hidden');
+    var old = document.getElementById('modalOldPw').value;
+    var np  = newPwEl ? newPwEl.value : '';
+    var cp  = cfmPwEl ? cfmPwEl.value : '';
+    if (!old)  { pwErr.textContent='Current password is required.'; pwErr.classList.remove('hidden'); return; }
+    if (!np)   { pwErr.textContent='New password is required.'; pwErr.classList.remove('hidden'); return; }
+    if (!cp)   { pwErr.textContent='Please confirm your new password.'; pwErr.classList.remove('hidden'); return; }
+    if (np.length<8)           { pwErr.textContent='Password must be at least 8 characters.'; pwErr.classList.remove('hidden'); return; }
+    if (!/[A-Z]/.test(np))     { pwErr.textContent='Password must contain an uppercase letter.'; pwErr.classList.remove('hidden'); return; }
+    if (!/[0-9]/.test(np))     { pwErr.textContent='Password must contain a number.'; pwErr.classList.remove('hidden'); return; }
+    if (!/[^A-Za-z0-9]/.test(np)){ pwErr.textContent='Password must contain a special character.'; pwErr.classList.remove('hidden'); return; }
+    if (np!==cp)               { pwErr.textContent='Passwords do not match.'; pwErr.classList.remove('hidden'); return; }
+    changePwBtn.disabled=true;
+    try {
+      var r = await fetch('/api/account/password',{method:'POST',credentials:'include',headers:{'Content-Type':'application/json','X-CSRFToken':getCsrfToken()},body:JSON.stringify({old_password:old,new_password:np})});
+      var d = await r.json();
+      if (d.ok) {
+        pwOk.textContent='Password updated! Logging out…'; pwOk.classList.remove('hidden');
+        document.getElementById('modalOldPw').value='';
+        if (newPwEl) newPwEl.value=''; if (cfmPwEl) cfmPwEl.value='';
+        setTimeout(function(){ window.location.href='/login'; },1500);
+      } else { pwErr.textContent=d.error||d.message||'Update failed.'; pwErr.classList.remove('hidden'); }
+    } catch(e){ pwErr.textContent='Network error.'; pwErr.classList.remove('hidden'); }
+    changePwBtn.disabled=false;
+  });
+
+  // ── Delete account ──
+  var deleteBtn        = document.getElementById('modalDeleteAccountBtn');
+  var confirmStep      = document.getElementById('deleteConfirmStep');
+  var confirmDeleteBtn = document.getElementById('modalConfirmDeleteBtn');
+  var cancelDeleteBtn  = document.getElementById('modalCancelDeleteBtn');
+  var deleteErr        = document.getElementById('modalDeleteErr');
+  if (deleteBtn) deleteBtn.addEventListener('click', function(){
+    deleteBtn.style.display='none'; confirmStep.style.display='block';
+    document.getElementById('modalDeletePw').value=''; deleteErr.classList.add('hidden');
+  });
+  if (cancelDeleteBtn) cancelDeleteBtn.addEventListener('click', function(){
+    confirmStep.style.display='none'; deleteBtn.style.display=''; deleteErr.classList.add('hidden');
+  });
+  if (confirmDeleteBtn) confirmDeleteBtn.addEventListener('click', async function(){
+    var pw = document.getElementById('modalDeletePw').value;
+    deleteErr.classList.add('hidden');
+    if (!pw){ deleteErr.textContent='Password is required.'; deleteErr.classList.remove('hidden'); return; }
+    confirmDeleteBtn.disabled=true; confirmDeleteBtn.textContent='Deleting…';
+    try {
+      var r = await fetch('/api/account/delete',{method:'POST',credentials:'include',headers:{'Content-Type':'application/json','X-CSRFToken':getCsrfToken()},body:JSON.stringify({password:pw})});
+      var d = await r.json();
+      if (d.ok){ window.location.href='/login'; }
+      else { deleteErr.textContent=d.error||'Deletion failed.'; deleteErr.classList.remove('hidden'); confirmDeleteBtn.disabled=false; confirmDeleteBtn.textContent='Yes, Delete My Account'; }
+    } catch(e){ deleteErr.textContent='Network error.'; deleteErr.classList.remove('hidden'); confirmDeleteBtn.disabled=false; confirmDeleteBtn.textContent='Yes, Delete My Account'; }
+  });
+})();
+</script>
+
+  <!-- ── FAQ Modal ── -->
+  <div class="profile-modal-overlay" id="faqModalOverlay">
+    <div class="profile-modal" style="max-width:560px;">
+      <div class="profile-modal-head">
+        <div class="profile-modal-avatar" style="background:linear-gradient(135deg,#0070cc,#9b59b6);">
+          <svg width="22" height="22" fill="none" stroke="#fff" stroke-width="2.5" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"></circle><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"></path><line x1="12" y1="17" x2="12.01" y2="17"></line></svg>
+        </div>
+        <div class="profile-modal-info">
+          <div class="profile-modal-name">Help &amp; FAQ</div>
+          <div class="profile-modal-role" style="color:var(--text2);font-size:11px;">Step-by-step guides &amp; answers</div>
+        </div>
+        <button class="profile-modal-close" id="closeFaqModal">
+          <svg width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+        </button>
+      </div>
+      <div style="padding:12px 16px;border-bottom:1px solid var(--border);">
+        <div style="position:relative;">
+          <svg style="position:absolute;left:10px;top:50%;transform:translateY(-50%);color:var(--text2);pointer-events:none;" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+          <input id="faqSearchInput" type="text" placeholder="Search help topics…" style="width:100%;box-sizing:border-box;padding:8px 10px 8px 32px;border:1px solid var(--border2);border-radius:8px;background:var(--bg3);color:var(--text);font-size:13px;outline:none;">
+        </div>
+        <div id="faqNoResults" style="display:none;text-align:center;padding:10px 0 2px;font-size:12px;color:var(--text2);">No results found.</div>
+      </div>
+      <div class="profile-modal-body" style="padding:12px 16px;">
+        <div id="faqModalList" style="display:flex;flex-direction:column;gap:6px;"></div>
+      </div>
+    </div>
+  </div>
+
+<script nonce="{{ g.csp_nonce }}">
+// ── FAQ Modal ──
+document.addEventListener('DOMContentLoaded', function() {
+(function(){
+  var faqs=[
+    {q:'📖 Quick Start — How to use CatchCatchTV',a:'Step 1: Add your cameras in Settings → Camera Management. Step 2: View live feeds on the Dashboard. Step 3: Set up Discord alerts in Settings → Notifications. Step 4: Admins can review threats, block IPs, and manage users in the Admin panel. Step 5: Manage your profile (nickname, password) by clicking your avatar in the top-left sidebar.'},
+    {q:'What is CatchCatchTV?',a:'CatchCatchTV is a smart security camera management system. It lets you add, view, and manage IP cameras, monitor live feeds, and receive real-time threat alerts — all from one dashboard.'},
+    {q:'🏠 Sidebar — what each button does',a:'Dashboard — all camera live feeds in a grid. Camera — detailed single-camera view. Settings — manage cameras, notifications, and your account. Admin (admins only) — system logs, IP blocking, user management, security config. Dark Mode — switches theme. Help & FAQ (? icon) — opens this panel. Your avatar — opens the profile panel.'},
+    {q:'📺 Dashboard page — what each element does',a:'Each camera card shows the live stream and label. Click a card to expand. If a camera shows "Offline" the stream URL is unreachable. The alert counter in the header shows unread threat events.'},
+    {q:'📷 Camera page — what each button does',a:'Play/Pause — start or stop the stream. Fullscreen icon — expand to fill your screen (Escape to exit). AI toggle — enable motion detection for that camera. The camera selector at the top lets you switch cameras.'},
+    {q:'How do I add a camera?',a:'Step 1: Click Settings in the sidebar. Step 2: Scroll to Camera Management and click Add Camera. Step 3: Enter a label and stream URL (rtsp://, http://, or https://). Step 4: Optionally enable AI detection. Step 5: Click Save Camera. The camera appears on your Dashboard.'},
+    {q:'How do I edit or delete a camera?',a:'Go to Settings → Camera Management. Edit the label or URL in-place and click Save. To delete: click the red Delete button and confirm. Deletion is permanent.'},
+    {q:'⚙️ Settings page — what each section does',a:'Camera Management — add, edit, remove cameras. Discord Webhook — paste a Discord webhook URL for real-time alerts. Admin Webhook (admins only) — system-wide alert channel. Click Save in each section after changes.'},
+    {q:'How do I set up Discord notifications?',a:'Step 1: In Discord, Server Settings → Integrations → Webhooks → New Webhook. Step 2: Choose a channel and copy the URL. Step 3: Paste into CatchCatchTV Settings → Discord Webhook URL. Step 4: Click Save Webhook.'},
+    {q:'How do I change my nickname?',a:'Click your avatar (top-left sidebar) to open the profile panel. In the Display Nickname field, type your new name (3–16 characters, letters/numbers/_ . #). Click Save Nickname.'},
+    {q:'How do I change my password?',a:'Click your avatar to open the profile panel. Under Change Password: enter your current password, then new password (8+ characters, one uppercase, one number), confirm it, click Update Password. You will be logged out after.'},
+    {q:'What does "Active Threats" mean?',a:'Active Threats counts IPs flagged for suspicious activity (failed logins, honeypot scans). Admins: click the Active Threats card on the Admin panel to jump to the Security tab and review or block those IPs.'},
+    {q:'🛡️ Admin — Logs tab',a:'The main system event log. Filter by IP, severity (Info/Notice/Alert/Critical), or user. Click any IP to open a popup — block, whitelist, or view the full event timeline. Use Refresh to reload.'},
+    {q:'🛡️ Admin — Blocked IPs tab',a:'All currently blocked IPs with reason and expiry. Click Unblock to remove. To block manually: Security tab → Manual IP Control.'},
+    {q:'🛡️ Admin — Users tab',a:'All registered accounts with role and last activity. Click the red trash icon to delete a user permanently.'},
+    {q:'🛡️ Admin — Roles tab',a:'Grant or revoke admin privileges per user. Admins access the Admin panel, logs, IP blocking, and user management.'},
+    {q:'🛡️ Admin — Security tab',a:'Automated Defense: set failed-login threshold for auto-block. Emergency Controls: maintenance mode or whitelist-only lockdown. Manual IP Control: block/whitelist any IP, reputation lookup, reverse DNS. Active Threats + Threat Timeline panels.'},
+    {q:'How do I enable Dark Mode?',a:'Click the moon icon "Dark Mode" in the left sidebar. Preference is saved across all pages. Click again (sun icon) to switch back to Light Mode.'},
+    {q:'Why is my camera showing "Offline"?',a:'Causes: (1) Camera is off or disconnected. (2) Stream URL wrong — must start with rtsp://, http://, or https://. (3) Firewall blocking the port. (4) Camera needs credentials in URL, e.g. rtsp://user:pass@ip:port/stream.'},
+    {q:'How do I delete my account?',a:'Open the profile panel (click your avatar). Scroll to the red Delete Account section. Click Delete My Account, enter your password, confirm. Permanent, cannot be undone.'}
+  ];
+  function buildFaqItems(list,query){
+    list.innerHTML='';
+    var q=(query||'').toLowerCase().trim();
+    var filtered=q?faqs.filter(function(f){return f.q.toLowerCase().includes(q)||f.a.toLowerCase().includes(q);}):faqs;
+    var noResults=document.getElementById('faqNoResults');
+    if(noResults)noResults.style.display=filtered.length===0?'block':'none';
+    filtered.forEach(function(item){
+      var wrapper=document.createElement('div');
+      wrapper.style.cssText='border:1px solid var(--border2);border-radius:8px;overflow:hidden;';
+      var btn=document.createElement('button');
+      btn.style.cssText='width:100%;display:flex;align-items:center;justify-content:space-between;gap:8px;padding:10px 12px;background:transparent;border:none;cursor:pointer;font-size:12px;font-weight:600;color:var(--text);text-align:left;line-height:1.4;';
+      var displayQ=item.q;
+      if(q){try{var _esc=q.replace(/[-[\]{}()*+?.,\\^$|#\s]/g,'\\$&');var re=new RegExp('('+_esc+')','gi');displayQ=item.q.replace(re,'<mark style="background:rgba(0,112,204,.25);color:var(--blue);border-radius:2px;">$1</mark>');}catch(ex){}}
+      btn.innerHTML='<span>'+displayQ+'</span><svg style="flex-shrink:0;transition:transform .2s" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><polyline points="6 9 12 15 18 9"></polyline></svg>';
+      var body=document.createElement('div');
+      body.style.cssText='display:none;padding:0 12px 10px;font-size:12px;color:var(--text2);line-height:1.7;border-top:1px solid var(--border);';
+      body.textContent=item.a;
+      if(q&&filtered.length===1){body.style.display='block';btn.querySelector('svg').style.transform='rotate(180deg)';}
+      btn.addEventListener('click',function(){var open=body.style.display!=='none';body.style.display=open?'none':'block';btn.querySelector('svg').style.transform=open?'':'rotate(180deg)';});
+      wrapper.appendChild(btn);wrapper.appendChild(body);list.appendChild(wrapper);
+    });
+  }
+  var faqOverlay=document.getElementById('faqModalOverlay');
+  var openFaqBtn=document.getElementById('openFaqModal');
+  var closeFaqBtn=document.getElementById('closeFaqModal');
+  var faqList=document.getElementById('faqModalList');
+  var faqSearch=document.getElementById('faqSearchInput');
+  function openFaq(){if(!faqOverlay)return;faqOverlay.classList.add('open');buildFaqItems(faqList,'');if(faqSearch){faqSearch.value='';setTimeout(function(){faqSearch.focus();},80);}}
+  function closeFaq(){if(faqOverlay)faqOverlay.classList.remove('open');}
+  // Direct listeners — IIFE runs after markup exists so elements are found
+  if(openFaqBtn)openFaqBtn.addEventListener('click',function(e){e.stopPropagation();openFaq();});
+  if(closeFaqBtn)closeFaqBtn.addEventListener('click',function(e){e.stopPropagation();closeFaq();});
+  // Delegation fallback for any edge case
+  document.addEventListener('click',function(e){
+    var btn=e.target.closest('#openFaqModal');
+    if(btn){openFaq();return;}
+    var close=e.target.closest('#closeFaqModal');
+    if(close){closeFaq();return;}
+    if(e.target===faqOverlay){closeFaq();return;}
+  });
+  if(faqSearch)faqSearch.addEventListener('input',function(){buildFaqItems(faqList,faqSearch.value);});
+  document.addEventListener('keydown',function(e){if(e.key==='Escape'&&faqOverlay&&faqOverlay.classList.contains('open'))closeFaq();});
+  window.openFaqModal=openFaq;
+})();
+});
+</script>
+
+</body>
+</html>

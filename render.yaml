@@ -1,0 +1,6 @@
+services:
+  - type: web
+    name: catchcatchtv
+    runtime: python
+    buildCommand: pip install -r requirements.txt
+    startCommand: gunicorn "main:app" --bind 0.0.0.0:$PORT --workers 1 --worker-class gthread --threads 4 --timeout 120

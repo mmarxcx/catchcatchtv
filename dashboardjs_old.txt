@@ -1,0 +1,958 @@
+let mode         = 'ip';
+let connected    = false;
+let localStream  = null;
+let uptimeMin    = 0;
+let idleTimer    = null;
+let activeFilter = '';
+
+const sevCount = { INFO: 0, WARNING: 0, ALERT: 0, CRITICAL: 0 };
+const catCount = { ACCOUNTS: 0, DETECTION: 0, STATUS: 0 };
+
+function getLogCategory(eventType, severity) {
+  const t = (eventType || '').toUpperCase();
+  const s = (severity || '').toUpperCase();
+
+  if (['AUTH', 'SESSION'].includes(t)) {
+    if (s === 'CRITICAL') return 'STATUS';
+    return 'ACCOUNTS';
+  }
+
+  if (['DETECTION', 'CAMERA', 'SIGNALING'].includes(t)) return 'DETECTION';
+  return 'STATUS';
+}
+
+// ==========================================
+// SAFELY GRAB ELEMENTS
+// ==========================================
+const statusBadge   = document.getElementById('statusBadge');
+const startBtn      = document.getElementById('startBtn');
+const stopBtn       = document.getElementById('stopBtn');
+const localVideo    = document.getElementById('localVideo');
+const feedOffline   = document.getElementById('feedOffline');
+const feedWrap      = document.getElementById('feedWrap');
+const offlineMsg    = document.getElementById('offlineMsg');
+const offlineSub    = document.getElementById('offlineSub');
+const aiPill        = document.getElementById('aiPill');
+const aiCanvas      = document.getElementById('aiCanvas');
+const statAccounts  = document.getElementById('statAccounts');
+const statDetection = document.getElementById('statDetection');
+const statStatus    = document.getElementById('statStatus');
+const statTotal     = document.getElementById('statTotal');
+const statUptime    = document.getElementById('statUptime'); 
+const statCam       = document.getElementById('statCam');    
+const logList       = document.getElementById('logList');
+const logCount      = document.getElementById('logCount');
+const setupHint     = document.getElementById('setupHint');
+const cctvOverlay   = document.getElementById('cctvOverlay');
+
+// ==========================================
+// BROWSER VISIBILITY & TAB SWITCHING
+// ==========================================
+let aiPausedByVisibility = false;
+
+document.addEventListener('visibilitychange', () => {
+  if (document.hidden) {
+    // Tab became hidden: Save resources and prevent throttle-crashing
+    if (detectionInterval || isDetecting) {
+      aiPausedByVisibility = true;
+      
+      // Stop the interval loop, but DO NOT disconnect the actual video stream
+      if (detectionInterval) { 
+        clearInterval(detectionInterval); 
+        detectionInterval = null; 
+      }
+      isDetecting = false;
+    }
+  } else {
+    // Tab is visible again: Seamlessly resume AI if it was running
+    if (aiPausedByVisibility && connected) {
+      aiPausedByVisibility = false;
+      
+      // Re-initialize the loop
+      if (aiCanvas && aiCanvas.width > 0) {
+        detectionInterval = setInterval(runDetection, 2000);
+        runDetection();
+      } else {
+        startDetection(); // Full restart if canvas was cleared
+      }
+    }
+  }
+});
+
+if (aiPill) {
+  if (typeof AI_ENABLED !== 'undefined' && AI_ENABLED) {
+    aiPill.textContent = 'AI on';
+    aiPill.classList.add('on');
+  } else {
+    aiPill.textContent = 'AI off';
+  }
+}
+
+if (setupHint) {
+  setupHint.style.display = (typeof CAMERA_URL !== 'undefined' && CAMERA_URL) ? 'none' : 'block';
+}
+
+updateStatus('offline');
+resetIdle();
+
+if (typeof USER_ROLE !== 'undefined' && USER_ROLE === 'admin') {
+  const al = document.getElementById('adminLink');
+  if (al) al.style.display = 'inline-block';
+}
+
+// ==========================================
+// AI DETECTION LOGIC
+// ==========================================
+let cocoModel           = null;
+let modelLoading        = false;
+let modelLoaded         = false;
+let detectionInterval   = null;
+let isDetecting         = false;
+let isSending           = false;
+let pendingStart        = false;
+let previousPersonBoxes = [];
+let modelRetries        = 0;
+const MAX_MODEL_RETRIES = 2;
+
+const captureCanvas = document.createElement('canvas');
+const captureCtx    = captureCanvas.getContext('2d', { willReadFrequently: true });
+
+const CLASS_COLORS = {
+  person: '#ff2d6e',
+  car: '#ffb800', truck: '#ffb800', bus: '#ffb800', motorcycle: '#ffb800', bicycle: '#ffb800',
+  cat: '#00ffb3', dog: '#00ffb3', bird: '#00ffb3',
+  _default: '#00c8ff',
+};
+
+function getColor(c) { 
+  return CLASS_COLORS[c.toLowerCase()] || CLASS_COLORS._default; 
+}
+
+async function loadModel() {
+  if (modelLoading || modelLoaded || !aiPill) return;
+  
+  modelLoading = true;
+  aiPill.textContent = '⏳ AI loading…';
+  aiPill.classList.remove('on');
+  
+  try {
+    let waited = 0;
+    while (typeof cocoSsd === 'undefined' || typeof tf === 'undefined') {
+      if (waited >= 30000) throw new Error('TF.js / COCO-SSD did not load within 30s.');
+      await new Promise(r => setTimeout(r, 300));
+      waited += 300;
+    }
+    
+    cocoModel = await cocoSsd.load();
+    modelLoaded = true;
+    aiPill.textContent = 'AI on';
+    aiPill.classList.add('on');
+    
+    if (pendingStart && connected) { 
+      pendingStart = false; 
+      startDetection(); 
+    }
+  } catch(e) {
+    modelRetries++;
+    if (modelRetries < MAX_MODEL_RETRIES) {
+      aiPill.textContent = `⏳ AI retrying (${modelRetries})…`;
+      setTimeout(() => { 
+        modelLoading = false; 
+        loadModel(); 
+      }, 4000);
+      return;
+    }
+    aiPill.textContent = '⚠ AI unavailable';
+    aiPill.classList.remove('on');
+  } finally {
+    modelLoading = false;
+  }
+}
+
+if (typeof AI_ENABLED !== 'undefined' && AI_ENABLED) {
+  loadModel();
+}
+
+async function captureFrame() {
+  if (mode === 'ip') {
+    const feed = document.getElementById('ipFeed');
+    if (!feed || feed.naturalWidth === 0 || feed.style.display === 'none') return null;
+
+    captureCanvas.width  = feed.naturalWidth;
+    captureCanvas.height = feed.naturalHeight;
+
+    try {
+      captureCtx.drawImage(feed, 0, 0, captureCanvas.width, captureCanvas.height);
+      captureCtx.getImageData(0, 0, 1, 1); 
+      return captureCanvas;
+    } catch(e) {
+      return null;
+    }
+  } else {
+    if (!localVideo || localVideo.readyState < 2 || localVideo.videoWidth === 0) return null;
+    captureCanvas.width  = localVideo.videoWidth;
+    captureCanvas.height = localVideo.videoHeight;
+    captureCtx.drawImage(localVideo, 0, 0, captureCanvas.width, captureCanvas.height);
+    return captureCanvas;
+  }
+}
+
+function proximityLabel(boxH, canvasH) {
+  const r = canvasH > 0 ? boxH / canvasH : 0;
+  if (r >= 0.55) return 'Close Range';
+  if (r >= 0.25) return 'Mid Range';
+  return 'Far Range';
+}
+
+function motionLabel(cx, cy) {
+  if (!previousPersonBoxes.length) return null;
+  let minD = Infinity;
+  for (const p of previousPersonBoxes) {
+    const d = Math.sqrt((cx-p.cx)**2 + (cy-p.cy)**2);
+    if (d < minD) minD = d;
+  }
+  return minD > 15 ? 'Moving' : 'Stationary';
+}
+
+function syncCanvas() {
+  if (!feedWrap || !aiCanvas) return;
+  let w = feedWrap.offsetWidth;
+  let h = feedWrap.offsetHeight;
+  
+  if (w === 0 || h === 0) {
+    const feed = document.getElementById('ipFeed');
+    if (feed && feed.naturalWidth > 0) {
+      w = feed.offsetWidth || feed.naturalWidth;
+      h = feed.offsetHeight || feed.naturalHeight;
+    }
+  }
+  
+  if (w > 0 && h > 0) {
+    if (aiCanvas.width !== w)  aiCanvas.width  = w;
+    if (aiCanvas.height !== h) aiCanvas.height = h;
+    aiCanvas.style.width  = w + 'px';
+    aiCanvas.style.height = h + 'px';
+  }
+}
+
+function drawBox(ctx, x, y, w, h, label, color) {
+  ctx.save(); 
+  ctx.shadowBlur = 16; 
+  ctx.shadowColor = color; 
+  ctx.strokeStyle = color; 
+  ctx.lineWidth = 2.5;
+  ctx.strokeRect(x, y, w, h); 
+  ctx.restore();
+  
+  const cLen = Math.min(w,h) * 0.15;
+  ctx.save(); 
+  ctx.strokeStyle = '#ffffff'; 
+  ctx.lineWidth = 2;
+  
+  ctx.beginPath(); ctx.moveTo(x, y + cLen); ctx.lineTo(x, y); ctx.lineTo(x + cLen, y); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(x + w - cLen, y); ctx.lineTo(x + w, y); ctx.lineTo(x + w, y + cLen); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(x, y + h - cLen); ctx.lineTo(x, y + h); ctx.lineTo(x + cLen, y + h); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(x + w - cLen, y + h); ctx.lineTo(x + w, y + h); ctx.lineTo(x + w, y + h - cLen); ctx.stroke();
+  ctx.restore();
+  
+  ctx.save();
+  ctx.font = 'bold 11px Orbitron,"Share Tech Mono",monospace';
+  const tw = ctx.measureText(label).width;
+  const pH = 20, pX = 4, pY = 4;
+  const lx = Math.max(0, Math.min(x, aiCanvas.width - tw - pX * 2));
+  const ly = (y - pH - 3 < 0) ? y + 3 : y - pH - 3;
+  
+  const [r2,g2,b2] = [parseInt(color.slice(1,3),16), parseInt(color.slice(3,5),16), parseInt(color.slice(5,7),16)];
+  ctx.fillStyle = `rgba(${r2},${g2},${b2},0.82)`;
+  
+  if (ctx.roundRect){
+    ctx.beginPath();
+    ctx.roundRect(lx, ly, tw + pX * 2, pH, 4);
+    ctx.fill();
+  } else {
+    ctx.fillRect(lx, ly, tw + pX * 2, pH);
+  }
+  
+  ctx.fillStyle = '#fff'; 
+  ctx.fillText(label, lx + pX, ly + pH - pY); 
+  ctx.restore();
+}
+
+function drawHUD(ctx, persons, total, lastScan) {
+  const lines = [`PERSONS: ${persons}`, `OBJECTS: ${total}`, `SCAN: ${lastScan}`];
+  const lH = 15, pX = 8, pY = 5, w = 165, h = lines.length * lH + pY * 2;
+  const startX = ctx.canvas.width - w - 12;
+  const startY = 12;
+  
+  ctx.save();
+  ctx.fillStyle = 'rgba(5,8,15,0.82)';
+  
+  if (ctx.roundRect) {
+    ctx.beginPath();
+    ctx.roundRect(startX, startY, w, h, 4);
+    ctx.fill();
+  } else {
+    ctx.fillRect(startX, startY, w, h);
+  }
+  
+  ctx.font = '10px Orbitron,"Share Tech Mono",monospace'; 
+  ctx.fillStyle = '#00ffb3';
+  
+  lines.forEach((l, i) => {
+    ctx.fillText(l, startX + pX, startY + pY + (i + 1) * lH - 2);
+  });
+  
+  ctx.restore();
+}
+
+async function runDetection() {
+  if (isDetecting || !modelLoaded || !connected) return;
+  isDetecting = true;
+
+  try {
+    const src = await captureFrame();
+    if (!src) return;
+
+    if (captureCanvas.width === 0 || captureCanvas.height === 0) return;
+
+    if (aiPill) {
+      aiPill.textContent = '🔍 Scanning…';
+      aiPill.style.boxShadow = '0 0 14px rgba(196,107,255,.8)';
+    }
+
+    syncCanvas();
+    if (!aiCanvas || aiCanvas.width === 0 || aiCanvas.height === 0) return;
+
+    const predictions = await cocoModel.detect(src);
+    const ctx = aiCanvas.getContext('2d');
+    ctx.clearRect(0, 0, aiCanvas.width, aiCanvas.height);
+    const ts  = new Date().toLocaleTimeString('en-PH', {hour12:false});
+
+    if (predictions.length === 0) {
+      drawHUD(ctx, 0, 0, ts);
+      return;
+    }
+
+    const srcW = captureCanvas.width;
+    const srcH = captureCanvas.height;
+    const scaleX = aiCanvas.width  / srcW;
+    const scaleY = aiCanvas.height / srcH;
+
+    const persons = predictions.filter(p => p.class === 'person');
+    const others  = predictions.filter(p => p.class !== 'person');
+    persons.sort((a,b) => a.bbox[0] - b.bbox[0]);
+
+    const newCenters = [];
+    const enriched = persons.map((p, i) => {
+      const [bx,by,bw,bh] = p.bbox;
+      const sx = bx * scaleX, sy = by * scaleY, sw = bw * scaleX, sh = bh * scaleY;
+      const cx = sx + sw / 2, cy = sy + sh / 2;
+      newCenters.push({cx, cy});
+      
+      const prox = proximityLabel(sh, aiCanvas.height);
+      const mot  = motionLabel(cx, cy);
+      const num  = persons.length > 1 ? ` ${i+1}` : '';
+      const motS = mot ? ` · ${mot}` : '';
+      const label= `Person${num} · ${prox}${motS} · ${Math.round(p.score*100)}%`;
+      
+      return {
+        bx:sx, by:sy, bw:sw, bh:sh, label,
+        score: p.score,
+        api_class: label,
+        api_bbox: { x: Math.round(bx), y: Math.round(by), width: Math.round(bw), height: Math.round(bh) },
+        is_alert: p.score >= 0.65,
+      };
+    });
+    previousPersonBoxes = newCenters;
+
+    enriched.forEach(p => drawBox(ctx, p.bx, p.by, p.bw, p.bh, p.label, '#ff2d6e'));
+    others.forEach(o => {
+      const [bx,by,bw,bh] = o.bbox;
+      const label = `${o.class} · ${Math.round(o.score*100)}%`;
+      drawBox(ctx, bx*scaleX, by*scaleY, bw*scaleX, bh*scaleY, label, getColor(o.class));
+    });
+    drawHUD(ctx, persons.length, predictions.length, ts);
+
+    if (!isSending) {
+      const payload = [
+        ...enriched.map(p => ({ detected_class: p.api_class, confidence: p.score, bounding_box: p.api_bbox, is_alert: p.is_alert })),
+        ...others.map(o => ({ detected_class: o.class, confidence: o.score, bounding_box: { x: Math.round(o.bbox[0]), y: Math.round(o.bbox[1]), width: Math.round(o.bbox[2]), height: Math.round(o.bbox[3]) }, is_alert: false })),
+      ];
+      isSending = true;
+      fetch('/api/detections', {
+        method: 'POST', credentials: 'include',
+        headers: {'Content-Type':'application/json'},
+        body: JSON.stringify({detections: payload}),
+      }).finally(() => { isSending = false; });
+    }
+  } catch(err) {
+    console.error('[AI] runDetection() unexpected error:', err);
+  } finally {
+    isDetecting = false;
+    if (typeof AI_ENABLED !== 'undefined' && AI_ENABLED && modelLoaded && aiPill) {
+      aiPill.textContent = 'AI on';
+      aiPill.style.boxShadow = '';
+    }
+  }
+}
+
+function startDetection() {
+  if (typeof AI_ENABLED === 'undefined' || !AI_ENABLED) return;
+  if (!modelLoaded) { 
+    pendingStart = true; 
+    return; 
+  }
+  
+  stopDetection();
+  if (aiCanvas) aiCanvas.style.display = 'block';
+  previousPersonBoxes = [];
+
+  function tryStart(attempt) {
+    syncCanvas();
+    if (!aiCanvas || aiCanvas.width === 0 || aiCanvas.height === 0) {
+      if (attempt < 5) {
+        setTimeout(() => requestAnimationFrame(() => tryStart(attempt + 1)), 400);
+      } else {
+        detectionInterval = setInterval(runDetection, 2000);
+        runDetection();
+      }
+      return;
+    }
+    detectionInterval = setInterval(runDetection, 2000);
+    runDetection();
+  }
+  setTimeout(() => requestAnimationFrame(() => tryStart(1)), 500);
+}
+
+function stopDetection() {
+  if (detectionInterval) { 
+    clearInterval(detectionInterval); 
+    detectionInterval = null; 
+  }
+  if (aiCanvas) {
+    const ctx = aiCanvas.getContext('2d');
+    ctx.clearRect(0, 0, aiCanvas.width, aiCanvas.height);
+    aiCanvas.style.display = 'none';
+  }
+  previousPersonBoxes = [];
+  pendingStart  = false;
+  isDetecting   = false;
+  isSending     = false;
+}
+
+// ==========================================
+// CAMERA STREAMING LOGIC
+// ==========================================
+function setMode(m) {
+  if (connected) doDisconnect();
+  mode = m;
+  previousPersonBoxes = [];
+  
+  const modeIpBtn = document.getElementById('modeIpBtn');
+  const modeWebBtn = document.getElementById('modeWebBtn');
+  if (modeIpBtn) modeIpBtn.classList.toggle('active', m === 'ip');
+  if (modeWebBtn) modeWebBtn.classList.toggle('active', m === 'webcam');
+  
+  if (offlineMsg) offlineMsg.textContent = 'Press ▶ Connect to start';
+  if (offlineSub) offlineSub.textContent = m === 'ip' ? 'Supports MJPEG, IP cameras, and CCTV stream URLs' : "Will use this device's camera via browser";
+}
+
+if (startBtn) startBtn.addEventListener('click', doConnect);
+if (stopBtn) stopBtn.addEventListener('click',  doDisconnect);
+
+async function doConnect() {
+  if (startBtn) startBtn.disabled = true;
+  if (mode === 'ip') await connectIPCam();
+  else               await connectLocalCam();
+  if (startBtn) startBtn.disabled = false;
+}
+
+async function connectIPCam() {
+  if (typeof CAMERA_URL === 'undefined' || !CAMERA_URL) {
+    return alert('No camera URL configured in Settings.');
+  }
+
+  updateStatus('connecting');
+  
+  const feedOffline = document.getElementById('feedOffline');
+  const cctvOverlay = document.getElementById('cctvOverlay');
+  
+  if (feedOffline) feedOffline.style.display = 'none';
+  if (cctvOverlay) cctvOverlay.style.display = 'none'; 
+
+  const oldFeed = document.getElementById('ipFeed');
+  if (!oldFeed) return;
+  const freshFeed = oldFeed.cloneNode(false);
+  oldFeed.parentNode.replaceChild(freshFeed, oldFeed);
+  
+  const feed = document.getElementById('ipFeed');
+  const audioFeed = document.getElementById('camAudio');
+  const localVideo = document.getElementById('localVideo');
+
+  feed.crossOrigin = "anonymous";
+  feed.style.display = 'none'; 
+  if (localVideo) localVideo.style.display = 'none';
+
+  const controller = new AbortController();
+  const signal = controller.signal;
+
+  const connectionTimeout = setTimeout(() => {
+    controller.abort(); 
+  }, 3000);
+
+  const triggerOfflineUI = () => {
+    feed.src = ""; 
+    feed.style.display = 'none';
+    if (cctvOverlay) cctvOverlay.style.display = 'none';
+    if (feedOffline) feedOffline.style.display = 'flex';
+    updateStatus('offline');
+    showStreamBtns(false);
+  };
+
+  try {
+    await fetch(CAMERA_URL, { mode: 'no-cors', signal: signal });
+    clearTimeout(connectionTimeout);
+    controller.abort(); 
+
+    feed.onload = () => {
+      if (!connected) {
+        connected = true;
+        feed.style.display = 'block';
+        updateStatus('online');
+        showStreamBtns(true); 
+        startDetection();
+        
+        if (CAMERA_URL.includes('/video') && audioFeed) {
+            audioFeed.src = CAMERA_URL.replace('/video', '/audio.opus');
+            audioFeed.play().catch(e => console.warn("Audio autoplay blocked", e));
+        }
+      }
+    };
+
+    feed.onerror = () => {
+      if (feed.crossOrigin) {
+          feed.removeAttribute('crossorigin');
+          feed.src = CAMERA_URL;
+          return;
+      }
+      triggerOfflineUI();
+    };
+
+    feed.src = CAMERA_URL;
+
+  } catch (err) {
+    clearTimeout(connectionTimeout); 
+    triggerOfflineUI();
+  }
+}
+
+async function connectLocalCam() {
+  try {
+    localStream = await navigator.mediaDevices.getUserMedia({ 
+      video: {width: 720, height: 480, facingMode: 'environment'}, 
+      audio: false 
+    });
+    
+    if (localVideo) {
+      localVideo.srcObject = localStream;
+      localVideo.style.display = 'block';
+    }
+    
+    const ipFeed = document.getElementById('ipFeed');
+    if (ipFeed) ipFeed.style.display = 'none';
+    
+    if (feedOffline) feedOffline.style.display = 'none';
+    
+    connected = true;
+    updateStatus('online');
+    showStreamBtns(true);
+    startDetection();
+  } catch(err) {
+    if (feedOffline) feedOffline.style.display = 'flex';
+    updateStatus('offline');
+  }
+}
+
+function doDisconnect() {
+  connected = false;
+  stopDetection();
+  
+  const feed = document.getElementById('ipFeed');
+  if (feed) {
+    feed.onload = null; 
+    feed.onerror = null; 
+    feed.src = ''; 
+    feed.style.display = 'none';
+  }
+  
+  const audioFeed = document.getElementById('camAudio');
+  if (audioFeed) {
+      audioFeed.pause();
+      audioFeed.src = '';
+  }
+
+  if (localStream) { 
+    localStream.getTracks().forEach(t => t.stop()); 
+    localStream = null; 
+  }
+  
+  if (localVideo) { 
+    localVideo.srcObject = null; 
+    localVideo.style.display = 'none'; 
+  }
+  
+  if (feedOffline) feedOffline.style.display = 'flex';
+  
+  updateStatus('offline');
+  showStreamBtns(false);
+  
+  uptimeMin = 0; 
+  if (statUptime) statUptime.textContent = '0m';
+}
+
+function updateCCTVTime() {
+  const now = new Date();
+  const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  
+  const m = months[now.getMonth()];
+  const d = now.getDate();
+  const y = now.getFullYear();
+  
+  let hr = now.getHours();
+  const min = now.getMinutes().toString().padStart(2, '0');
+  const sec = now.getSeconds().toString().padStart(2, '0');
+  const ampm = hr >= 12 ? 'PM' : 'AM';
+  
+  hr = hr % 12;
+  hr = hr ? hr : 12; 
+  
+  const timeString = `${m} ${d}, ${y} ${hr}:${min}:${sec} ${ampm}`;
+  
+  document.querySelectorAll('.live-timestamp').forEach(el => {
+    el.textContent = timeString;
+  });
+}
+
+setInterval(updateCCTVTime, 1000);
+updateCCTVTime(); 
+
+function showStreamBtns(s) {
+  if (startBtn) startBtn.classList.toggle('hidden', s); 
+  if (stopBtn) stopBtn.classList.toggle('hidden', !s);
+  
+  if (cctvOverlay) {
+    cctvOverlay.style.display = s ? 'flex' : 'none';
+  }
+}
+
+function updateStatus(s) {
+  const L = {online:'Online', offline:'Offline', connecting:'Connecting…'};
+  const C = {online:'var(--green)', offline:'var(--red)', connecting:'var(--blue)'};
+  
+  if (statusBadge) {
+    statusBadge.textContent = L[s] || s; 
+    statusBadge.className = `status-badge ${s}`;
+  }
+  
+  if (statCam) { 
+    statCam.textContent = L[s] || s; 
+    statCam.style.color = C[s] || 'var(--text2)'; 
+  }
+}
+
+setInterval(() => {
+  if (!connected) return;
+  uptimeMin++;
+  if (statUptime) {
+    statUptime.textContent = uptimeMin > 59 ? `${Math.floor(uptimeMin/60)}h ${uptimeMin%60}m` : `${uptimeMin}m`;
+  }
+}, 60000);
+
+window.addEventListener('resize', () => { 
+  if (connected && typeof AI_ENABLED !== 'undefined' && AI_ENABLED) syncCanvas(); 
+});
+
+if (typeof ResizeObserver !== 'undefined' && feedWrap) {
+  new ResizeObserver(() => { 
+    if (connected && typeof AI_ENABLED !== 'undefined' && AI_ENABLED) syncCanvas(); 
+  }).observe(feedWrap);
+}
+
+function updateKpiCounts() {
+  const total = catCount.ACCOUNTS + catCount.DETECTION + catCount.STATUS;
+  if (statTotal) statTotal.textContent = total;
+  if (statAccounts) statAccounts.textContent = catCount.ACCOUNTS;
+  if (statDetection) statDetection.textContent = catCount.DETECTION;
+  if (statStatus) statStatus.textContent = catCount.STATUS;
+}
+
+function applyFilter(cat) {
+  activeFilter = cat;
+  
+  document.querySelectorAll('.filter-btn').forEach(b => {
+    b.classList.toggle('active', b.dataset.cat === cat);
+  });
+  
+  document.querySelectorAll('.stat-card, .feed-kpi-item').forEach(c => {
+    c.classList.toggle('active-filter', c.dataset.kpi === cat);
+  });
+  
+  if (typeof applyLiveFilters === 'function') applyLiveFilters();
+}
+
+document.querySelectorAll('.stat-card, .feed-kpi-item').forEach(card => {
+  card.addEventListener('click', () => applyFilter(activeFilter === card.dataset.kpi ? '' : card.dataset.kpi));
+});
+
+document.querySelectorAll('.filter-btn').forEach(btn => {
+  btn.addEventListener('click', () => applyFilter(btn.dataset.cat));
+});
+
+document.querySelectorAll('#logoutBtn, .logout-btn').forEach(btn => {
+  btn.addEventListener('click', async (e) => {
+    e.preventDefault();
+    doDisconnect(); 
+    window.location.href = '/logout';
+  });
+});
+
+function fmtTime(iso) { 
+  try { return new Date(iso).toLocaleTimeString('en-PH', {hour12:false}); } catch { return ''; } 
+}
+
+const SEV_LABEL = {
+  INFO:     'Info',
+  WARNING:  'Notice',
+  ALERT:    'Alert',   
+  CRITICAL: 'Critical', 
+};
+
+function logToUI(entry) {
+  if (!logList) return; 
+
+  if (entry && entry.__action === 'clear') {
+    logList.innerHTML = '<div class="log-placeholder">Logs cleared.</div>';
+    sevCount.INFO = sevCount.WARNING = sevCount.ALERT = sevCount.CRITICAL = 0;
+    catCount.ACCOUNTS = catCount.DETECTION = catCount.STATUS = 0;
+    updateKpiCounts(); 
+    if (logCount) logCount.textContent = '0 entries'; 
+    return;
+  }
+
+  const ph = logList.querySelector('.log-placeholder'); 
+  if (ph) ph.remove();
+
+  const sev  = (entry.severity   || 'INFO').toUpperCase();
+  const type = (entry.event_type || '').toUpperCase();
+  
+  if (sev in sevCount) sevCount[sev]++;
+  const cat = getLogCategory(type, sev);
+  if (cat in catCount) { 
+    catCount[cat]++; 
+    updateKpiCounts(); 
+  }
+
+  const div = document.createElement('div');
+  div.className    = `log-entry sev-${sev}`;
+  div.dataset.sev  = sev;
+  div.dataset.cat  = cat;
+
+  const dot  = document.createElement('div');  
+  dot.className  = 'sev-dot';
+  
+  const body = document.createElement('div');
+
+  const descRow = document.createElement('div'); 
+  descRow.className = 'log-desc';
+  
+  const tag = document.createElement('span');
+  tag.className   = 'log-sev-tag';
+  tag.textContent = SEV_LABEL[sev] || sev;
+  
+  descRow.appendChild(tag);
+  descRow.appendChild(document.createTextNode(entry.description || ''));
+
+  const metaRow = document.createElement('div'); 
+  metaRow.className = 'log-meta';
+  metaRow.textContent = `${cat}${entry.ip ? ' · ' + entry.ip : ''} · ${fmtTime(entry.timestamp)}`;
+
+  body.appendChild(descRow); 
+  body.appendChild(metaRow);
+  div.appendChild(dot); 
+  div.appendChild(body);
+
+  const sortRadios = document.querySelectorAll('input[name="logSort"]');
+  let sortOrder = 'newest';
+  sortRadios.forEach(r => { if(r.checked) sortOrder = r.value; });
+
+  if (sortOrder === 'newest') {
+    logList.prepend(div);
+  } else {
+    logList.appendChild(div);
+  }
+
+  while (logList.children.length > 150) {
+    if (sortOrder === 'newest') logList.removeChild(logList.lastChild);
+    else logList.removeChild(logList.firstChild);
+  }
+
+  if (typeof applyLiveFilters === 'function') applyLiveFilters();
+}
+
+const clearLogsBtn = document.getElementById('clearLogsBtn');
+if (clearLogsBtn) {
+  clearLogsBtn.addEventListener('click', async () => {
+    if (!confirm('Clear all your logs?')) return;
+    const r = await fetch('/api/logs/clear', {method:'POST', credentials:'include'});
+    if (r.ok && logList) {
+      logList.innerHTML = '<div class="log-placeholder">Logs cleared.</div>';
+      sevCount.INFO = sevCount.WARNING = sevCount.ALERT = sevCount.CRITICAL = 0;
+      catCount.ACCOUNTS = catCount.DETECTION = catCount.STATUS = 0;
+      updateKpiCounts(); 
+      if (logCount) logCount.textContent = '0 entries';
+    }
+  });
+}
+
+function connectSSE() {
+  if (!logList) return; 
+  
+  const initialPh = logList.querySelector('.log-placeholder');
+  if (initialPh) initialPh.textContent = 'Authenticating stream...';
+
+  const es = new EventSource('/api/logs/stream', {withCredentials: true});
+  
+  const connectionTimeout = setTimeout(() => {
+     const ph = logList.querySelector('.log-placeholder');
+     if (ph && ph.textContent.includes('Authenticating')) {
+         ph.textContent = 'System active. Waiting for logs...';
+     }
+  }, 3000);
+  
+  es.onopen = () => { 
+    clearTimeout(connectionTimeout);
+    const ph = logList.querySelector('.log-placeholder'); 
+    if (ph) ph.textContent = 'System active. Waiting for logs...'; 
+  };
+  
+  es.onmessage = e => { 
+    try { logToUI(JSON.parse(e.data)); } catch(_){} 
+  };
+  
+  es.onerror = () => { 
+    es.close(); 
+    clearTimeout(connectionTimeout);
+    const ph = logList.querySelector('.log-placeholder'); 
+    if (ph) ph.textContent = 'Stream disconnected. Reconnecting...'; 
+    setTimeout(connectSSE, 5000); 
+  };
+}
+
+connectSSE();
+
+function resetIdle() {
+  clearTimeout(idleTimer);
+  idleTimer = setTimeout(async () => { 
+    doDisconnect(); 
+    window.location.href = '/logout'; 
+  }, 30 * 60 * 1000); 
+}
+
+['mousemove','keydown','click','scroll','touchstart'].forEach(ev => {
+  document.addEventListener(ev, resetIdle, {passive:true})
+});
+
+setInterval(() => {
+  fetch('/api/status', { credentials: 'include' })
+    .catch(err => console.error("Heartbeat network error:", err));
+}, 10 * 60 * 1000);
+
+const TAB_ID = Date.now().toString();
+if (startBtn) {
+  startBtn.addEventListener('click', () => localStorage.setItem('cg_tab', TAB_ID));
+}
+
+window.addEventListener('storage', e => {
+  if (e.key === 'cg_tab' && e.newValue !== TAB_ID && connected) { 
+    doDisconnect(); 
+    if (offlineMsg) offlineMsg.textContent = 'Stream started in another tab'; 
+    if (offlineSub) offlineSub.textContent = 'Only one tab can stream at a time'; 
+  }
+});
+
+// ==========================================
+// REAL-TIME FILTERING & SORTING LOGIC
+// ==========================================
+function applyLiveFilters() {
+  const searchInput = document.getElementById('logSearchInput');
+  const sevSelect = document.getElementById('logSevSelect');
+  const query = searchInput ? searchInput.value.toLowerCase() : '';
+  const sev = sevSelect ? sevSelect.value : 'ALL';
+  
+  document.querySelectorAll('.log-entry').forEach(log => {
+    const text = log.textContent.toLowerCase();
+    const logSev = log.dataset.sev || 'INFO';
+    
+    const matchesSearch = text.includes(query);
+    const matchesSev = (sev === 'ALL' || logSev === sev);
+    const matchesCat = (!activeFilter || log.dataset.cat === activeFilter);
+    
+    if (matchesSearch && matchesSev && matchesCat) {
+      log.style.display = '';
+      log.classList.remove('hidden-filter');
+    } else {
+      log.style.display = 'none';
+      log.classList.add('hidden-filter');
+    }
+  });
+
+  const logCount = document.getElementById('logCount');
+  if (logCount) {
+    logCount.textContent = document.querySelectorAll('.log-entry:not(.hidden-filter)').length + ' entries';
+  }
+}
+
+document.addEventListener("DOMContentLoaded", () => {
+  const searchInput = document.getElementById('logSearchInput');
+  const sevSelect = document.getElementById('logSevSelect');
+  const filterBtn = document.getElementById('logFilterBtn');
+  const filterMenu = document.getElementById('logFilterMenu');
+  const sortRadios = document.querySelectorAll('input[name="logSort"]');
+  const logListEl = document.getElementById('logList');
+
+  // 🔥 Safely initialize UI text state on DOM load to prevent TDZ crashes 🔥
+  setMode('ip');
+
+  if (searchInput) searchInput.addEventListener('input', applyLiveFilters);
+  if (sevSelect) sevSelect.addEventListener('change', applyLiveFilters);
+
+  if (filterBtn && filterMenu) {
+    filterBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      filterMenu.style.display = filterMenu.style.display === 'none' ? 'block' : 'none';
+      filterBtn.style.background = filterMenu.style.display === 'block' ? 'rgba(0,120,200,0.1)' : 'transparent';
+      filterBtn.style.borderColor = filterMenu.style.display === 'block' ? 'var(--blue)' : 'var(--border2)';
+      filterBtn.style.color = filterMenu.style.display === 'block' ? 'var(--blue)' : 'var(--text2)';
+    });
+
+    document.addEventListener('click', (e) => {
+      if (!filterMenu.contains(e.target) && e.target !== filterBtn) {
+        filterMenu.style.display = 'none';
+        filterBtn.style.background = 'transparent';
+        filterBtn.style.borderColor = 'var(--border2)';
+        filterBtn.style.color = 'var(--text2)';
+      }
+    });
+  }
+
+  if (sortRadios.length > 0) {
+    sortRadios.forEach(radio => {
+      radio.addEventListener('change', () => {
+        if (!logListEl) return;
+        const logs = Array.from(document.querySelectorAll('.log-entry'));
+        logs.reverse();
+        logs.forEach(log => logListEl.appendChild(log));
+      });
+    });
+  }
+});

@@ -1,0 +1,188 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<script nonce="{{ g.csp_nonce }}">if(localStorage.getItem("cctv_dark_mode")==="1")document.documentElement.classList.add("dark-mode");</script>
+
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>CatchCatchTV — Register</title>
+<link rel="stylesheet" href="/static/style.css">
+</head>
+
+<body class="auth-body">
+<div class="auth-wrap">
+  <div class="auth-card">
+    
+    <div class="brand">
+      <svg style="width: 48px; height: auto;" viewBox="530 551 2120 1620" xmlns="http://www.w3.org/2000/svg">
+        <defs><linearGradient id="authBrandGrad" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" stop-color="#0070cc"/><stop offset="50%" stop-color="#7c3aed"/><stop offset="100%" stop-color="#c0186b"/></linearGradient></defs>
+        <path fill="url(#authBrandGrad)" d="M 1529.039062 585.910156 L 1858.929688 601.621094 L 2619.910156 941.039062 L 2260.011719 932.339844 L 2107.78125 1111.078125 L 1481.910156 811.078125 Z"/><path fill="url(#authBrandGrad)" d="M 1510.710938 860.820312 L 2084.089844 1140.96875 L 2084.089844 1235.21875 L 1502.851562 923.660156 Z"/><path fill="url(#authBrandGrad)" d="M 2269.980469 941.988281 L 2489.910156 947.21875 L 2488.160156 1091.511719 L 2387.800781 1258.789062 L 2097.179688 1245.691406 L 2100.058594 1153.808594 Z"/><circle fill="url(#authBrandGrad)" opacity="0.15" cx="2321.570312" cy="1104.488281" r="201"/><circle fill="url(#authBrandGrad)" opacity="0.5" cx="2321.570312" cy="1104.488281" r="100"/><circle fill="white" opacity="0.55" cx="2321.570312" cy="1104.488281" r="50"/><path fill="url(#authBrandGrad)" d="M 1788.800781 1104.039062 L 2040.171875 1230.378906 L 2040.171875 1297.019531 L 1795.570312 1178.28125 Z"/><path fill="url(#authBrandGrad)" d="M 1829.988281 1208.351562 L 1831.078125 1318.039062 L 1481.070312 1441.429688 L 1481.070312 1481.058594 C 1489.628906 1497.070312 1498.511719 1512.910156 1507.679688 1528.570312 C 1578.050781 1571.460938 1654.269531 1608.761719 1729.140625 1635.789062 L 1729.140625 1482.160156 L 2032.761719 1341.460938 L 2031.078125 1304.25 Z"/><path fill="url(#authBrandGrad)" d="M 2498.589844 948.53125 L 2617.808594 948.53125 L 2545.238281 1087.78125 L 2499.070312 1087.289062 Z"/><path fill="url(#authBrandGrad)" opacity="0.9" d="M 858.074219 551.800781 L 945.550781 661.988281 L 854.519531 713.421875 L 653.628906 626.871094 L 597.132812 699.289062 L 789.921875 829.019531 L 794.222656 964.769531 L 580.089844 964.019531 L 647.546875 1125.488281 L 898.757812 1189.960938 L 1052.269531 1392.328125 L 952.613281 1524.96875 L 1138.449219 1705.328125 L 1325.230469 1638.519531 L 1555.199219 1780.148438 L 1618.488281 1992.199219 L 1813.339844 2066.871094 L 1834.21875 1901.140625 L 2010.621094 1920.050781 L 2157.589844 2094.601562 L 2256.789062 2062.070312 L 2173.679688 1890.058594 L 2247.898438 1822.828125 L 2375.738281 1912.058594 L 2399.589844 1838.910156 L 2277.789062 1706.191406 L 2265.671875 1607.460938 L 2360 1631.398438 L 2316.53125 1536.820312 L 2236.53125 1489.800781 C 2213.621094 1510.058594 2179.210938 1533.378906 2139.988281 1550 C 2150.019531 1618.601562 2125.480469 1635.878906 2085.78125 1668.488281 C 1939.429688 1788.71875 1581.921875 1646.269531 1364.878906 1471.710938 C 1039.410156 1209.96875 923.886719 901.96875 1054.679688 802.910156 C 1109.75 761.199219 1207.429688 756.960938 1323.96875 786.308594 L 1387.078125 679.589844 L 1210.921875 603.351562 L 1225.179688 680.609375 L 1110.578125 659.441406 L 971.742188 553.421875 Z"/>
+      </svg>
+      <span class="brand-name">CatchCatchTV</span>
+    </div>
+    
+    <h1 class="auth-heading">CREATE ACCOUNT</h1>
+    <p class="auth-sub">Your personal 24/7 CatchCatchTV (CCTV) monitoring.</p>
+    <div class="err-box hidden" id="err"></div>
+    <div class="ok-box hidden" id="ok"></div>
+    
+    <div class="field-group">
+      <label class="field-label">Email</label>
+      <input class="field-input" id="email" type="email" placeholder="juandelacruz@gmail.com" autocomplete="email">
+      <div class="pw-rules" id="emailRules">
+        <div class="pw-rule" id="rule-email-gmail"><span class="rule-icon">✓</span><span>Must end with @gmail.com</span></div>
+      </div>
+    </div>
+    
+    <div class="field-group">
+      <label class="field-label">Username</label>
+      <input class="field-input" id="username" type="text" placeholder="username" autocomplete="username">
+      <div class="pw-rules" id="userRules">
+        <div class="pw-rule" id="rule-user-len"><span class="rule-icon">✓</span><span>3 to 16 characters</span></div>
+        <div class="pw-rule" id="rule-user-char"><span class="rule-icon">✓</span><span>Only letters, numbers, _, ., #</span></div>
+      </div>
+    </div>
+    
+    <div class="field-group">
+      <label class="field-label">Password</label>
+      <input class="field-input" id="password" type="password" placeholder="••••••••" autocomplete="new-password">
+      <div class="pw-rules" id="pwRules">
+        <div class="pw-rule" id="rule-len"><span class="rule-icon">✓</span><span>At least 8 characters</span></div>
+        <div class="pw-rule" id="rule-upper"><span class="rule-icon">✓</span><span>One uppercase letter</span></div>
+        <div class="pw-rule" id="rule-num"><span class="rule-icon">✓</span><span>One number</span></div>
+        <div class="pw-rule" id="rule-special"><span class="rule-icon">✓</span><span>One special character (!@#$…)</span></div>
+      </div>
+    </div>
+    
+    <div class="field-group">
+      <label class="field-label">Confirm Password</label>
+      <input class="field-input" id="confirm" type="password" placeholder="••••••••">
+      <div class="pw-rule" id="rule-match" style="margin-top:6px"><span class="rule-icon">✓</span><span>Passwords match</span></div>
+    </div>
+    
+    <button class="btn-primary" id="btn">Create Account</button>
+    <p class="auth-footer">Have an account? <a href="/login">Sign in</a></p>
+    <p class="auth-footer" style="font-size:0.75rem;margin-top:8px">
+      By creating an account you agree to our 
+      <a href="/terms">Terms of Service</a> and 
+      <a href="/privacy">Privacy Policy</a>
+    </p>
+  </div>
+</div>
+
+<script nonce="{{ g.csp_nonce }}">
+// Apply color directly via inline style — immune to CSS specificity / load-order issues.
+// Also toggles the class for the icon sub-element styling.
+const GREEN = '#00a86b';
+const RED   = '#d6194a';
+const GRAY  = '#5a7090';
+
+function applyColor(id, state) {
+  const el = document.getElementById(id);
+  if (!el) return;
+  el.classList.remove('met', 'unmet');
+  const icon = el.querySelector('.rule-icon');
+  if (state === 'met') {
+    el.classList.add('met');
+    el.style.color = GREEN;
+    if (icon) { icon.style.color = GREEN; icon.style.borderColor = GREEN; icon.style.background = 'rgba(0,168,107,.12)'; }
+  } else if (state === 'unmet') {
+    el.classList.add('unmet');
+    el.style.color = RED;
+    if (icon) { icon.style.color = RED; icon.style.borderColor = RED; icon.style.background = 'rgba(214,25,74,.12)'; }
+  } else {
+    el.style.color = GRAY;
+    if (icon) { icon.style.color = GRAY; icon.style.borderColor = GRAY; icon.style.background = ''; }
+  }
+}
+
+function checkEmail() {
+  const e = document.getElementById('email').value.trim();
+  const isTyping = e.length > 0;
+  const isGmail = e.endsWith('@gmail.com');
+  applyColor('rule-email-gmail', isGmail ? 'met' : (isTyping ? 'unmet' : 'default'));
+}
+
+function checkUsername() {
+  const u = document.getElementById('username').value;
+  const isTyping = u.length > 0;
+  applyColor('rule-user-len', (u.length >= 3 && u.length <= 16) ? 'met' : (isTyping ? 'unmet' : 'default'));
+  applyColor('rule-user-char', (/^[a-zA-Z0-9_.#]+$/.test(u) && u.length > 0) ? 'met' : (isTyping ? 'unmet' : 'default'));
+}
+
+function checkPw() {
+  const v = document.getElementById('password').value;
+  const isTyping = v.length > 0;
+  applyColor('rule-len',     v.length >= 8          ? 'met' : (isTyping ? 'unmet' : 'default'));
+  applyColor('rule-upper',   /[A-Z]/.test(v)        ? 'met' : (isTyping ? 'unmet' : 'default'));
+  applyColor('rule-num',     /[0-9]/.test(v)        ? 'met' : (isTyping ? 'unmet' : 'default'));
+  applyColor('rule-special', /[^A-Za-z0-9]/.test(v) ? 'met' : (isTyping ? 'unmet' : 'default'));
+  checkConfirm();
+}
+
+function checkConfirm() {
+  const pw = document.getElementById('password').value;
+  const co = document.getElementById('confirm').value;
+  const isTyping = co.length > 0;
+  applyColor('rule-match', (co.length > 0 && pw === co) ? 'met' : (isTyping ? 'unmet' : 'default'));
+}
+
+// Wire up all inputs via addEventListener — inline oninput= attributes are blocked
+// by CSP script-src nonce policy (event handler attributes are treated as unsafe-inline).
+document.addEventListener('DOMContentLoaded', function () {
+  document.getElementById('email')   .addEventListener('input', checkEmail);
+  document.getElementById('username').addEventListener('input', checkUsername);
+  document.getElementById('password').addEventListener('input', checkPw);
+  document.getElementById('confirm') .addEventListener('input', checkConfirm);
+});
+
+const btn = document.getElementById('btn');
+
+function show(el,msg){
+  el.textContent = msg;
+  el.classList.remove('hidden');
+}
+
+async function go(){
+  const email = document.getElementById('email').value.trim();
+  const username = document.getElementById('username').value.trim();
+  const password = document.getElementById('password').value;
+  const confirm = document.getElementById('confirm').value;
+  const errEl = document.getElementById('err'), okEl = document.getElementById('ok');
+  
+  errEl.classList.add('hidden'); okEl.classList.add('hidden');
+  
+  if(!email.endsWith('@gmail.com')){show(errEl,'Only @gmail.com email addresses are allowed.');return;}
+  if(username.length < 3 || username.length > 16){show(errEl,'Username must be between 3 and 16 characters.');return;}
+  if(!/^[a-zA-Z0-9_.#]+$/.test(username)){show(errEl,'Username can only contain letters, numbers, _, ., and #.');return;}
+  if(password !== confirm){show(errEl,'Passwords do not match.');return;}
+  if(password.length < 8){show(errEl,'Password must be at least 8 characters.');return;}
+  if(!/[A-Z]/.test(password)){show(errEl,'Password must contain at least one uppercase letter.');return;}
+  if(!/[0-9]/.test(password)){show(errEl,'Password must contain at least one number.');return;}
+  if(!/[^A-Za-z0-9]/.test(password)){show(errEl,'Password must contain at least one special character.');return;}
+
+  btn.disabled = true; btn.textContent = 'Creating…';
+  try {
+    const r = await fetch('/api/register', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-CSRFToken': '{{ csrf_token() }}' },
+      body: JSON.stringify({ email, username, password })
+    });
+    const b = await r.json();
+    if (r.ok) {
+      show(okEl,'Account created! Redirecting…');
+      setTimeout(() => window.location.href='/login', 1500);
+    } else {
+      show(errEl, b.error || 'Registration failed.');
+    }
+  } catch(e) {
+    show(errEl,'Network error.');
+  } finally {
+    btn.disabled = false; btn.textContent = 'Create Account';
+  }
+}
+
+btn.addEventListener('click', go);
+document.addEventListener('keydown', e => { if (e.key === 'Enter') go(); });
+</script>
+</body>
+</html>

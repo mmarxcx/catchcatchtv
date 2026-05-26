@@ -1,0 +1,39 @@
+# Environment variables — NEVER commit
+.env
+# .env.* — keep .env.example but ignore .env.local, .env.production, etc.
+.env.local
+.env.production
+.env.staging
+
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.egg-info/
+dist/
+build/
+.eggs/
+
+# Virtualenv
+# If venv/ was previously committed, remove it with:
+#   git rm -r --cached venv/ && git commit -m "Remove venv from tracking"
+venv/
+env/
+.venv/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+
+# Local Flask instance databases
+instance/
+*.db

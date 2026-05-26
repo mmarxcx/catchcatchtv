@@ -1,0 +1,1581 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>CatchCatchTV — Central Dashboard</title>
+<link rel="stylesheet" href="/static/style.css?v=2.0">
+<script nonce="{{ g.csp_nonce }}">if(localStorage.getItem("cctv_dark_mode")==="1")document.documentElement.classList.add("dark-mode");</script>
+<style>
+  .cam-head-left { display: flex; flex-direction: column; align-items: flex-start; gap: 4px; }
+  .role-badge { font-family: var(--sans); font-size: 11px; font-weight: 600; padding: 2px 8px; border-radius: 99px; text-transform: uppercase; letter-spacing: 0.05em; }
+  .role-admin { background: rgba(0, 112, 204, 0.12); color: var(--blue); border: 1px solid rgba(0, 112, 204, 0.2); }
+  .role-guest { background: rgba(90, 112, 144, 0.1); color: var(--text2); border: 1px solid rgba(90, 112, 144, 0.2); }
+  /* Profile modal must sit above everything including filter bar isolation wrapper */
+  .profile-modal-overlay { z-index: 999999 !important; }
+
+  /* ═══════════════════════════════════════
+     FILTER BAR — search + dropdown
+  ═══════════════════════════════════════ */
+
+  .dash-filter-bar {
+    max-width: 1400px;
+    margin: 0 auto 12px;
+    padding: 0 24px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    position: relative;
+    z-index: 1000;
+  }
+
+  .search-box {
+    position: relative;
+    flex: 1;
+    min-width: 220px;
+    max-width: 420px;
+  }
+  .search-icon {
+    position: absolute; left: 12px; top: 50%; transform: translateY(-50%);
+    width: 16px; height: 16px; color: var(--text2); pointer-events: none;
+  }
+  .search-box input[type="search"] {
+    width: 100%; padding: 9px 34px 9px 36px;
+    border-radius: 10px; border: 1px solid var(--border2);
+    background: var(--bg2); color: var(--text);
+    font-family: var(--sans); font-size: 14px; font-weight: 500;
+    transition: box-shadow 0.2s, border-color 0.2s;
+    box-sizing: border-box;
+  }
+  .search-box input[type="search"]:focus {
+    outline: none; border-color: var(--blue);
+    box-shadow: 0 0 0 3px rgba(0,112,204,0.12);
+  }
+  .search-clear-btn {
+    position: absolute; right: 10px; top: 50%; transform: translateY(-50%);
+    width: 18px; height: 18px; border: none; background: none;
+    cursor: pointer; padding: 0; color: var(--text2);
+    display: none; align-items: center; justify-content: center;
+    border-radius: 50%; transition: color 0.15s;
+  }
+  .search-clear-btn:hover { color: var(--text); }
+  .search-clear-btn svg { width: 12px; height: 12px; }
+  .search-box.has-value .search-clear-btn { display: flex; }
+
+  /* ── Filter dropdown button ── */
+  .filter-dropdown-wrap {
+    position: relative;
+    flex-shrink: 0;
+    z-index: 9999;
+  }
+  .filter-dropdown-btn {
+    display: flex; align-items: center; gap: 6px;
+    padding: 9px 14px;
+    border: 1px solid var(--border2); border-radius: 10px;
+    background: var(--bg2); color: var(--text2);
+    font-family: var(--sans); font-size: 14px; font-weight: 600;
+    cursor: pointer; transition: all 0.15s; white-space: nowrap;
+    user-select: none;
+  }
+  .filter-dropdown-btn svg.icon { width: 16px; height: 16px; flex-shrink: 0; }
+  .filter-dropdown-btn svg.chevron { width: 13px; height: 13px; transition: transform 0.2s; flex-shrink: 0; }
+  .filter-dropdown-btn:hover { border-color: var(--blue); color: var(--text); }
+  .filter-dropdown-btn.open, .filter-dropdown-btn.active-filters {
+    border-color: var(--blue); color: var(--blue);
+    background: rgba(0,112,204,0.05);
+  }
+  .filter-dropdown-btn.open svg.chevron { transform: rotate(180deg); }
+
+  /* Badge on button showing active count */
+  .filter-active-dot {
+    display: none; width: 7px; height: 7px;
+    background: var(--blue); border-radius: 50%;
+    flex-shrink: 0;
+  }
+  .filter-dropdown-btn.active-filters .filter-active-dot { display: block; }
+
+  /* ── Dropdown panel — uses position:fixed so it always renders above cards ── */
+  .filter-dropdown-panel {
+    display: none;
+    position: fixed;
+    min-width: 280px;
+    background: var(--bg);
+    border: 1px solid var(--border2);
+    border-radius: 12px;
+    box-shadow: 0 8px 32px rgba(0,0,0,0.22), 0 2px 8px rgba(0,0,0,0.12);
+    z-index: 99999;
+    overflow: hidden;
+    animation: dropIn 0.15s ease;
+  }
+  @keyframes dropIn {
+    from { opacity: 0; transform: translateY(-6px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+  .filter-dropdown-panel.open { display: block; }
+
+  /* Panel sections */
+  .fdp-section {
+    padding: 12px 14px 10px;
+    border-bottom: 1px solid var(--border);
+  }
+  .fdp-section:last-child { border-bottom: none; }
+  .fdp-label {
+    font-size: 10px; font-weight: 700; letter-spacing: 0.07em;
+    text-transform: uppercase; color: var(--text2);
+    margin-bottom: 8px; display: block;
+  }
+  .fdp-options {
+    display: flex; flex-wrap: wrap; gap: 5px;
+  }
+
+  /* Individual option buttons */
+  .fdp-btn {
+    display: inline-flex; align-items: center; gap: 5px;
+    padding: 5px 11px;
+    border: 1px solid var(--border2); border-radius: 7px;
+    background: var(--bg2); color: var(--text2);
+    font-family: var(--sans); font-size: 12px; font-weight: 600;
+    cursor: pointer; transition: all 0.15s; white-space: nowrap;
+    position: relative;
+  }
+  .fdp-btn svg { width: 12px; height: 12px; flex-shrink: 0; }
+  .fdp-btn:hover { border-color: var(--blue); color: var(--text); background: rgba(0,112,204,0.04); }
+  .fdp-btn.active {
+    border-color: var(--blue); background: rgba(0,112,204,0.1); color: var(--blue);
+  }
+  .fdp-btn.active.feat-btn {
+    border-color: #0d9488; background: rgba(13,148,136,0.1); color: #0d9488;
+  }
+
+  /* Count pill on buttons */
+  .fdp-count {
+    display: inline-flex; align-items: center; justify-content: center;
+    min-width: 16px; height: 15px; padding: 0 4px;
+    background: var(--border); border-radius: 99px;
+    font-size: 10px; font-weight: 700; color: var(--text2);
+    transition: all 0.2s;
+  }
+  .fdp-btn.active .fdp-count { background: rgba(0,112,204,0.18); color: var(--blue); }
+  .fdp-count.zero { opacity: 0.4; }
+
+  /* Panel footer */
+  .fdp-footer {
+    padding: 8px 14px;
+    display: flex; justify-content: space-between; align-items: center;
+    border-top: 1px solid var(--border);
+    background: var(--bg2);
+  }
+  .fdp-results-txt {
+    font-size: 11px; font-weight: 600; color: var(--text2);
+  }
+  .fdp-results-txt strong { color: var(--text); }
+  .fdp-clear-btn {
+    border: none; background: none; padding: 3px 6px;
+    border-radius: 5px; font-family: var(--sans); font-size: 11px;
+    font-weight: 600; color: var(--text2); cursor: pointer;
+    transition: all 0.15s; display: none;
+  }
+  .fdp-clear-btn.visible { display: block; }
+  .fdp-clear-btn:hover { color: var(--red); background: rgba(214,25,74,0.06); }
+
+  /* ── Meta row (active chips only) ── */
+  .filter-meta-row {
+    max-width: 1400px;
+    margin: 0 auto 10px;
+    padding: 0 24px;
+    display: flex; align-items: center; justify-content: center; gap: 6px;
+    flex-wrap: wrap; min-height: 0;
+    position: relative;
+    z-index: 999;
+  }
+  .filter-meta-row:empty { display: none; }
+
+  .active-chip {
+    display: inline-flex; align-items: center; gap: 4px;
+    background: rgba(0,112,204,0.08); border: 1px solid rgba(0,112,204,0.18);
+    color: var(--blue); border-radius: 99px;
+    padding: 2px 9px; font-size: 11px; font-weight: 600;
+    cursor: pointer; transition: all 0.12s; white-space: nowrap;
+    animation: chipIn 0.12s ease;
+  }
+  @keyframes chipIn { from { opacity:0; transform:scale(0.88); } to { opacity:1; transform:scale(1); } }
+  .active-chip:hover { background: rgba(214,25,74,0.07); border-color: rgba(214,25,74,0.2); color: var(--red); }
+  .active-chip svg { width: 9px; height: 9px; }
+  .active-chip.feat { background: rgba(13,148,136,0.08); border-color: rgba(13,148,136,0.2); color: #0d9488; }
+  .active-chip.feat:hover { background: rgba(214,25,74,0.07); border-color: rgba(214,25,74,0.2); color: var(--red); }
+
+  /* No-results */
+  .no-results-msg {
+    grid-column: 1/-1; text-align: center; padding: 50px 20px;
+    color: var(--text2); font-size: 14px; display: none;
+  }
+  .no-results-msg svg { width: 36px; height: 36px; opacity: 0.3; margin-bottom: 10px; display: block; margin-inline: auto; }
+  .no-results-msg strong { display: block; font-size: 15px; color: var(--text); margin-bottom: 4px; }
+
+  /* Camera grid */
+  .main-content { padding-left: 0 !important; padding-right: 0 !important; max-width: 100% !important; }
+  .admin-cam-grid {
+    display: grid !important;
+    grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+    gap: 20px;
+    max-width: 1400px;
+    margin: 0 auto;
+    padding: 0 24px 24px;
+    position: relative;
+    z-index: 0;
+  }
+  .admin-cam-card {
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    overflow: hidden;
+    box-shadow: 0 4px 16px rgba(0,0,0,0.08);
+    display: flex;
+    flex-direction: column;
+    position: relative;
+    z-index: 0;
+    /* Force uniform height — all cards same size */
+    height: 320px;
+  }
+  .cam-video-body {
+    position: relative; background: #0f172a;
+    flex: 1;
+    width: calc(100% - 16px);
+    margin: 8px;
+    border-radius: 8px;
+    display: flex; align-items: center; justify-content: center; overflow: hidden;
+    min-height: 0;
+  }
+  .admin-cam-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 24px rgba(0,0,0,0.14);
+  }
+  .admin-cam-card[data-streaming="true"] {
+    border-color: rgba(13, 148, 136, 0.45);
+    box-shadow: 0 0 12px rgba(13, 148, 136, 0.12);
+  }
+  .cam-top-bar {
+    display: flex; justify-content: space-between; align-items: center;
+    padding: 10px 14px; border-bottom: 1px solid var(--border);
+    background: var(--bg2);
+    min-height: 46px;
+    flex-wrap: nowrap;
+    gap: 8px;
+  }
+  .cam-top-left { display: flex; align-items: center; gap: 8px; min-width: 0; flex: 1; overflow: hidden; }
+  .cam-name {
+    font-family: var(--sans); font-size: 13px; font-weight: 700; color: var(--text);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    min-width: 0;
+  }
+  .role-badge { font-size: 10px; font-weight: 700; padding: 2px 7px; border-radius: 99px; letter-spacing: 0.05em; white-space: nowrap; flex-shrink: 0; }
+  .role-badge.guest { background: rgba(0,120,200,0.08); color: var(--blue); border: 1px solid rgba(0,120,200,0.25); }
+  .role-badge.admin { background: rgba(124,58,237,0.08); color: var(--purple); border: 1px solid rgba(124,58,237,0.25); }
+  .cam-top-right { display: flex; align-items: center; gap: 6px; flex-shrink: 0; }
+  .ai-text { color: #0d9488; font-size: 11px; font-weight: 800; letter-spacing: 0.05em; }
+  .top-icon-btn { background: none; border: none; cursor: pointer; color: #64748b; position: relative; padding: 2px; display: flex; transition: 0.2s; }
+  .top-icon-btn svg { width: 17px; height: 17px; stroke-width: 1.5; }
+  .top-icon-btn:hover { color: var(--text); }
+  .top-icon-btn.muted { color: #ef4444; }
+  .admin-cam-feed { width: 100%; height: 100%; object-fit: cover; }
+  .cctv-overlay-top {
+    position: absolute; top: 10px; left: 10px;
+    display: flex; flex-direction: column; align-items: flex-start; gap: 4px; z-index: 10;
+  }
+  .rec-indicator { color: #ef4444; font-size: 11px; font-weight: 700; font-family: var(--sans); display: flex; align-items: center; gap: 4px; text-shadow: 0 1px 2px rgba(0,0,0,0.8); }
+  .rec-indicator span { width: 7px; height: 7px; background: #ef4444; border-radius: 50%; display: inline-block; box-shadow: 0 0 5px #ef4444; }
+  .time-pill { background: rgba(0,0,0,0.55); color: #fff; font-family: monospace; font-size: 10px; padding: 3px 7px; border-radius: 5px; backdrop-filter: blur(4px); border: 1px solid rgba(255,255,255,0.1); }
+  .state-overlay {
+    position: absolute; inset: 0;
+    display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px;
+    color: rgba(255,255,255,0.45); background: #0f172a; z-index: 15;
+  }
+  .state-overlay svg { width: 40px !important; height: 40px !important; opacity: 0.5; }
+  .state-overlay span { font-family: var(--sans); font-size: 12px; font-weight: 600; margin-top: 6px; }
+
+  @keyframes pulse-ring {
+    0% { transform: scale(0.8); opacity: 0.5; }
+    100% { transform: scale(2.2); opacity: 0; }
+  }
+
+  @media (max-width: 900px) {
+    .admin-cam-grid { grid-template-columns: repeat(2, minmax(0, 1fr)) !important; }
+  }
+  @media (max-width: 600px) {
+    .admin-cam-grid { grid-template-columns: 1fr !important; }
+    .dash-filter-bar { padding: 0 16px; }
+    .filter-meta-row { padding: 0 16px; }
+    .search-box { max-width: 100%; flex: 1; }
+  }
+</style>
+</head>
+<body>
+<div class="app-container">
+    <aside class="sidebar" id="sidebar">
+    <button class="sidebar-toggle" id="sidebarToggle" title="Toggle sidebar">
+      <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"></polyline></svg>
+    </button>
+
+    <div class="sidebar-brand">
+      <svg class="brand-logo" viewBox="530 551 2120 1620" xmlns="http://www.w3.org/2000/svg">
+        <defs>
+          <linearGradient id="sidebarBrandGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+            <stop offset="0%" stop-color="#0070cc"/>
+            <stop offset="50%" stop-color="#7c3aed"/>
+            <stop offset="100%" stop-color="#c0186b"/>
+          </linearGradient>
+        </defs>
+        <path fill="url(#sidebarBrandGrad)" d="M 1529.039062 585.910156 L 1858.929688 601.621094 L 2619.910156 941.039062 L 2260.011719 932.339844 L 2107.78125 1111.078125 L 1481.910156 811.078125 Z"/>
+        <path fill="url(#sidebarBrandGrad)" d="M 1510.710938 860.820312 L 2084.089844 1140.96875 L 2084.089844 1235.21875 L 1502.851562 923.660156 Z"/>
+        <path fill="url(#sidebarBrandGrad)" d="M 2269.980469 941.988281 L 2489.910156 947.21875 L 2488.160156 1091.511719 L 2387.800781 1258.789062 L 2097.179688 1245.691406 L 2100.058594 1153.808594 Z"/>
+        <circle fill="url(#sidebarBrandGrad)" opacity="0.15" cx="2321.570312" cy="1104.488281" r="201"/>
+        <circle fill="url(#sidebarBrandGrad)" opacity="0.5" cx="2321.570312" cy="1104.488281" r="100"/>
+        <circle fill="white" opacity="0.55" cx="2321.570312" cy="1104.488281" r="50"/>
+        <path fill="url(#sidebarBrandGrad)" d="M 1788.800781 1104.039062 L 2040.171875 1230.378906 L 2040.171875 1297.019531 L 1795.570312 1178.28125 Z"/>
+        <path fill="url(#sidebarBrandGrad)" d="M 1829.988281 1208.351562 L 1831.078125 1318.039062 L 1481.070312 1441.429688 L 1481.070312 1481.058594 C 1489.628906 1497.070312 1498.511719 1512.910156 1507.679688 1528.570312 C 1578.050781 1571.460938 1654.269531 1608.761719 1729.140625 1635.789062 L 1729.140625 1482.160156 L 2032.761719 1341.460938 L 2031.078125 1304.25 Z"/>
+        <path fill="url(#sidebarBrandGrad)" d="M 2498.589844 948.53125 L 2617.808594 948.53125 L 2545.238281 1087.78125 L 2499.070312 1087.289062 Z"/>
+        <path fill="url(#sidebarBrandGrad)" opacity="0.9" d="M 858.074219 551.800781 L 945.550781 661.988281 L 854.519531 713.421875 L 653.628906 626.871094 L 597.132812 699.289062 L 789.921875 829.019531 L 794.222656 964.769531 L 580.089844 964.019531 L 647.546875 1125.488281 L 898.757812 1189.960938 L 1052.269531 1392.328125 L 952.613281 1524.96875 L 1138.449219 1705.328125 L 1325.230469 1638.519531 L 1555.199219 1780.148438 L 1618.488281 1992.199219 L 1813.339844 2066.871094 L 1834.21875 1901.140625 L 2010.621094 1920.050781 L 2157.589844 2094.601562 L 2256.789062 2062.070312 L 2173.679688 1890.058594 L 2247.898438 1822.828125 L 2375.738281 1912.058594 L 2399.589844 1838.910156 L 2277.789062 1706.191406 L 2265.671875 1607.460938 L 2360 1631.398438 L 2316.53125 1536.820312 L 2236.53125 1489.800781 C 2213.621094 1510.058594 2179.210938 1533.378906 2139.988281 1550 C 2150.019531 1618.601562 2125.480469 1635.878906 2085.78125 1668.488281 C 1939.429688 1788.71875 1581.921875 1646.269531 1364.878906 1471.710938 C 1039.410156 1209.96875 923.886719 901.96875 1054.679688 802.910156 C 1109.75 761.199219 1207.429688 756.960938 1323.96875 786.308594 L 1387.078125 679.589844 L 1210.921875 603.351562 L 1225.179688 680.609375 L 1110.578125 659.441406 L 971.742188 553.421875 Z"/>
+      </svg>
+      <span class="brand-name">CatchCatchTV</span>
+    </div>
+
+    <!-- Profile Card -->
+    <div class="sidebar-profile" id="openProfileModal" title="Your Profile">
+      <div class="profile-avatar" id="sidebarAvatarInitials">?</div>
+      <div class="profile-info">
+        <div class="profile-name" id="sidebarProfileName">Loading…</div>
+        <div class="profile-role" id="sidebarProfileRole">Guest</div>
+      </div>  
+    </div>
+
+    <nav class="sidebar-nav">
+      {% if user.role == 'admin' %}
+      <a href="/dashboard" class="nav-item {% if request.path == '/dashboard' %}active{% endif %}" data-label="Dashboard">
+        <svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7"></rect><rect x="14" y="3" width="7" height="7"></rect><rect x="14" y="14" width="7" height="7"></rect><rect x="3" y="14" width="7" height="7"></rect></svg>
+        <span class="nav-label">Dashboard</span>
+      </a>
+      {% endif %}
+
+      <a href="/camera" class="nav-item {% if request.path == '/camera' %}active{% endif %}" data-label="Camera">
+        <svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M23 7l-7 5 7 5V7z"></path><rect x="1" y="5" width="15" height="14" rx="2" ry="2"></rect></svg>
+        <span class="nav-label">Camera</span>
+      </a>
+
+      {% if user.role == 'admin' %}
+      <a href="/admin" class="nav-item {% if request.path == '/admin' %}active{% endif %}" data-label="Administrator">
+        <svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path></svg>
+        <span class="nav-label">Administrator</span>
+      </a>
+      {% endif %}
+
+      <a href="/settings" class="nav-item {% if request.path == '/settings' %}active{% endif %}" data-label="Settings">
+        <svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>
+        <span class="nav-label">Settings</span>
+      </a>
+    </nav>
+    <div class="sidebar-footer">
+      <div class="nav-item" id="openFaqModal" style="cursor:pointer;user-select:none;" title="Help & FAQ">
+        <svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"></circle><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"></path><line x1="12" y1="17" x2="12.01" y2="17"></line></svg>
+        <span class="nav-label">Help &amp; FAQ</span>
+      </div>
+      <div class="nav-item" id="darkModeToggleRow" style="cursor:pointer;user-select:none;" title="Toggle dark mode">
+        <svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" id="darkModeIcon"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path></svg>
+        <span class="nav-label" id="darkModeLabel">Dark Mode</span>
+      </div>
+      <a href="/logout" class="nav-item" style="color: var(--red);" data-label="Logout">
+        <svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path><polyline points="16 17 21 12 16 7"></polyline><line x1="21" y1="12" x2="9" y2="12"></line></svg>
+        <span class="nav-label">Logout</span>
+      </a>
+    </div>
+  </aside>
+
+  <main class="main-content">
+      <header class="page-header" style="padding: 1rem 1.5rem; justify-content: space-between;">
+        <div style="display: flex; align-items: center; gap: 12px;">
+          <button class="mobile-menu-btn" id="mobileMenuBtn">
+            <svg width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><line x1="3" y1="12" x2="21" y2="12"></line><line x1="3" y1="6" x2="21" y2="6"></line><line x1="3" y1="18" x2="21" y2="18"></line></svg>
+          </button>
+          <div style="display: flex; align-items: center; gap: 12px;">
+            <svg width="28" height="28" fill="none" stroke="url(#dashGrad)" stroke-width="2" viewBox="0 0 24 24" style="flex-shrink: 0;">
+              <defs>
+                <linearGradient id="dashGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+                  <stop offset="0%" stop-color="#0070cc" />
+                  <stop offset="50%" stop-color="#7c3aed" />
+                  <stop offset="100%" stop-color="#c0186b" />
+                </linearGradient>
+              </defs>
+              <rect x="3" y="3" width="7" height="7"></rect>
+              <rect x="14" y="3" width="7" height="7"></rect>
+              <rect x="14" y="14" width="7" height="7"></rect>
+              <rect x="3" y="14" width="7" height="7"></rect>
+            </svg>
+            <h1 class="page-title" style="background: var(--grad-brand); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; margin: 0;">Monitoring Dashboard</h1>
+          </div>
+        </div>
+      </header>
+
+    {# ══════════════════════════════════════
+       FILTER BAR — search + dropdown
+    ══════════════════════════════════════ #}
+    <div style="position:relative; z-index:1;">
+    <div class="dash-filter-bar">
+
+      <!-- Search -->
+      <div class="search-box">
+        <input type="text" style="position:absolute;opacity:0;height:0;width:0;pointer-events:none;" tabindex="-1" name="username" autocomplete="username" aria-hidden="true">
+        <input type="password" style="position:absolute;opacity:0;height:0;width:0;pointer-events:none;" tabindex="-1" name="password" autocomplete="current-password" aria-hidden="true">
+        <svg class="search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+        <input type="search" id="camSearchInput" name="dummy_search" placeholder="Search cameras…" autocomplete="new-password">
+        <button class="search-clear-btn" id="searchClearBtn" title="Clear search">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+        </button>
+      </div>
+
+      <!-- Filter dropdown -->
+      <div class="filter-dropdown-wrap">
+        <button class="filter-dropdown-btn" id="filterDropdownBtn" type="button">
+          <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"></polygon></svg>
+          <span>Filters</span>
+          <span class="filter-active-dot"></span>
+          <svg class="chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="6 9 12 15 18 9"></polyline></svg>
+        </button>
+      </div>
+    </div>
+
+    {# ── Active filter chips row ── #}
+    <div class="filter-meta-row" id="filterMetaRow">
+      <div id="activeChips" style="display:flex;gap:5px;flex-wrap:wrap;align-items:center;"></div>
+    </div>
+    </div>{# end isolation wrapper #}
+
+    {# ── Filter panel teleported to body level via JS ── #}
+    <div class="filter-dropdown-panel" id="filterDropdownPanel">
+
+          <!-- Status -->
+          <div class="fdp-section">
+            <span class="fdp-label">Status</span>
+            <div class="fdp-options">
+              <button class="fdp-btn status-filter-btn active" data-status="all" type="button">All</button>
+              <button class="fdp-btn status-filter-btn" data-status="online" type="button">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="2"></circle><path d="M16.24 7.76a6 6 0 0 1 0 8.49m-8.48 0a6 6 0 0 1 0-8.49"></path></svg>
+                Online <span class="fdp-count" id="countOnline">0</span>
+              </button>
+              <button class="fdp-btn status-filter-btn" data-status="offline" type="button">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 1l22 22"></path><path d="M16 16v1a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2h2m5.66 0H14a2 2 0 0 1 2 2v3.34l1 1L23 7v10"></path></svg>
+                Offline <span class="fdp-count" id="countOffline">0</span>
+              </button>
+            </div>
+          </div>
+
+          <!-- Role -->
+          <div class="fdp-section">
+            <span class="fdp-label">Role</span>
+            <div class="fdp-options">
+              <button class="fdp-btn role-filter-btn active" data-role="all" type="button">All Roles</button>
+              <button class="fdp-btn role-filter-btn" data-role="admin" type="button">
+                Admins <span class="fdp-count" id="countAdmin">0</span>
+              </button>
+              <button class="fdp-btn role-filter-btn" data-role="user" type="button">
+                Guests <span class="fdp-count" id="countGuest">0</span>
+              </button>
+            </div>
+          </div>
+
+          <!-- Feed -->
+          <div class="fdp-section">
+            <span class="fdp-label">Feed</span>
+            <div class="fdp-options">
+              <button class="fdp-btn feed-filter-btn active" data-feed="all" type="button">All</button>
+              <button class="fdp-btn feed-filter-btn" data-feed="live" type="button">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="23 7 16 12 23 17 23 7"></polygon><rect x="1" y="5" width="15" height="14" rx="2" ry="2"></rect></svg>
+                Live
+              </button>
+              <button class="fdp-btn feed-filter-btn" data-feed="cam_off" type="button">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M16 16v1a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2h2m5.66 0H14a2 2 0 0 1 2 2v3.34l1 1L23 7v10"></path><line x1="1" y1="1" x2="23" y2="23"></line></svg>
+                Cam Off
+              </button>
+              <button class="fdp-btn feed-filter-btn" data-feed="unconfigured" type="button">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><line x1="4.93" y1="4.93" x2="19.07" y2="19.07"></line></svg>
+                None
+              </button>
+            </div>
+          </div>
+
+          <!-- Features -->
+          <div class="fdp-section">
+            <span class="fdp-label">Features</span>
+            <div class="fdp-options">
+              <button class="fdp-btn feat-btn feature-filter-btn" data-feature="ai_on" type="button">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9.937 15.5A2 2 0 0 0 8.5 14.063l-6.135-1.582a.5.5 0 0 1 0-.962L8.5 9.936A2 2 0 0 0 9.937 8.5l1.582-6.135a.5.5 0 0 1 .963 0L14.063 8.5A2 2 0 0 0 15.5 9.937l6.135 1.581a.5.5 0 0 1 0 .964L15.5 14.063a2 2 0 0 0-1.437 1.437l-1.582 6.135a.5.5 0 0 1-.963 0z"></path></svg>
+                AI On
+              </button>
+              <button class="fdp-btn feat-btn feature-filter-btn" data-feature="mic_on" type="button">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"></path><path d="M19 10v2a7 7 0 0 1-14 0v-2"></path><line x1="12" y1="19" x2="12" y2="23"></line><line x1="8" y1="23" x2="16" y2="23"></line></svg>
+                Mic On
+              </button>
+            </div>
+          </div>
+
+          <!-- Footer -->
+          <div class="fdp-footer">
+            <span class="fdp-results-txt" id="resultsCount"></span>
+            <button class="fdp-clear-btn" id="clearFiltersBtn" type="button">Clear all</button>
+          </div>
+        </div>
+
+    <div class="admin-cam-grid">
+      <div class="no-results-msg" id="noResultsMsg">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line><line x1="8" y1="11" x2="14" y2="11"></line></svg>
+        <strong>No cameras match your filters</strong>
+        Try adjusting the filters or <a href="#" id="noResultsClear" style="color:var(--blue);text-decoration:none;font-weight:600;">clear all</a>.
+      </div>
+      {% for u in all_users %}
+        {% set cams = u.cameras.all() %}
+        {% for cam in cams %}
+          
+          <div class="admin-cam-card" data-role="{{ u.role }}">
+            
+            <div class="cam-top-bar">
+              <div class="cam-top-left">
+                <span class="cam-name" style="font-size: 15px; font-weight: 800;">{{ u.username or 'Guest' }}'s Camera</span>
+                <span class="role-badge {% if u.role == 'admin' %}admin{% else %}guest{% endif %}">
+                  {{ 'ADMIN' if u.role == 'admin' else 'GUEST' }}
+                </span>
+              </div>
+              
+              <div class="cam-top-right">
+                {% if cam.ai_enabled %}
+                  <div style="display: flex; align-items: center; gap: 6px; background: rgba(13, 148, 136, 0.1); padding: 4px 8px; border-radius: 8px; border: 1px solid rgba(13, 148, 136, 0.2); white-space: nowrap; flex-shrink: 0;">
+                    <span class="ai-text">AI ON</span>
+                    <span style="position: relative; display: flex; width: 8px; height: 8px; flex-shrink: 0;">
+                      <span style="animation: pulse-ring 1.5s cubic-bezier(0.215, 0.61, 0.355, 1) infinite; position: absolute; display: inline-flex; height: 100%; width: 100%; border-radius: 50%; background-color: #0d9488;"></span>
+                      <span style="position: relative; display: inline-flex; border-radius: 50%; height: 8px; width: 8px; background-color: #0d9488;"></span>
+                    </span>
+                  </div>
+                {% endif %}
+                
+                <button class="top-icon-btn admin-mic-btn muted" title="Mic">
+                  <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" style="color: #ef4444;"><line x1="1" y1="1" x2="23" y2="23"></line><path d="M9 9v3a3 3 0 0 0 5.12 2.12M15 9.34V4a3 3 0 0 0-5.94-.6"></path><path d="M17 16.95A7 7 0 0 1 5 12v-2m14 0v2a7 7 0 0 1-.11 1.23"></path><line x1="12" y1="19" x2="12" y2="23"></line><line x1="8" y1="23" x2="16" y2="23"></line></svg>
+                </button>
+                
+                <button class="top-icon-btn admin-cam-btn muted" title="Video">
+                  <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" style="color: #ef4444;"><path d="M16 16v1a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2h2m5.66 0H14a2 2 0 0 1 2 2v3.34l1 1L23 7v10"></path><line x1="1" y1="1" x2="23" y2="23"></line></svg>
+                </button>
+                
+                <button class="top-icon-btn admin-snap-btn" title="Snapshot">
+                  <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"></path><circle cx="12" cy="13" r="4"></circle></svg>
+                </button>
+              </div>
+            </div>
+
+            <div class="cam-video-body">
+              {% if cam.stream_url %}
+                
+                <div class="cctv-overlay-top">
+                  <div class="rec-indicator"><span></span> REC</div>
+                  <div class="time-pill live-timestamp"></div>
+                </div>
+                
+                <img src="{{ cam.stream_url }}" class="admin-cam-feed" alt="Camera Feed">
+                
+                <div class="state-overlay feed-offline-overlay" style="display: none;">
+                  <svg style="width: 48px; height: 48px; opacity: 0.8;" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M23 7l-7 5 7 5V7z"></path><rect x="1" y="5" width="15" height="14" rx="2" ry="2"></rect><line x1="1" y1="1" x2="23" y2="23" stroke-width="2"></line></svg>
+                  <span style="font-size: 14px; opacity: 0.9;">Stream Offline / Unreachable</span>
+                </div>
+                
+                <div class="state-overlay admin-cam-off-overlay" style="display: none;">
+                  <svg style="width: 48px; height: 48px; opacity: 0.8;" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
+                    <path d="M16 16v1a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2h2m5.66 0H14a2 2 0 0 1 2 2v3.34l1 1L23 7v10"></path>
+                    <line x1="1" y1="1" x2="23" y2="23"></line>
+                  </svg>
+                  <span style="font-size: 14px; opacity: 0.9;">Camera Off</span>
+                </div>
+                
+              {% else %}
+                <div class="state-overlay">
+                  <svg style="width: 48px; height: 48px; opacity: 0.8;" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M23 7l-7 5 7 5V7z"></path><rect x="1" y="5" width="15" height="14" rx="2" ry="2"></rect><line x1="12" y1="9" x2="12" y2="15"></line><line x1="9" y1="12" x2="15" y2="12"></line></svg>
+                  <span style="font-size: 14px; opacity: 0.9;">No Camera Configured</span>
+                </div>
+              {% endif %}
+            </div>
+
+          </div>
+
+        {% endfor %}
+      {% endfor %}
+    </div>
+  </main>
+</div>
+
+<div id="global-camera-engine" style="display: none;">
+  <img id="ipFeed" crossorigin="anonymous" style="display:none; max-width:100%; max-height:100%; object-fit:contain; z-index:5; position:relative;">
+  <video id="localVideo" autoplay muted playsinline style="display:none; max-width:100%; max-height:100%; object-fit:contain; z-index:5; position:relative;"></video>
+  <canvas id="aiCanvas" style="position: absolute; top: 0; left: 0; pointer-events: none; z-index: 20; display: none;"></canvas>
+  <audio id="camAudio"></audio>
+</div>
+<script nonce="{{ g.csp_nonce }}">
+  function updateAdminCCTVTime() {
+    const now = new Date();
+    const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+    
+    const m = months[now.getMonth()];
+    const d = now.getDate();
+    const y = now.getFullYear();
+    
+    let hr = now.getHours();
+    const min = now.getMinutes().toString().padStart(2, '0');
+    const sec = now.getSeconds().toString().padStart(2, '0');
+    const ampm = hr >= 12 ? 'PM' : 'AM';
+    
+    hr = hr % 12;
+    hr = hr ? hr : 12; 
+    
+    const timeString = `${m} ${d}, ${y} ${hr}:${min}:${sec} ${ampm}`;
+    
+    document.querySelectorAll('.live-timestamp').forEach(el => {
+      el.textContent = timeString;
+    });
+  }
+  
+  setInterval(updateAdminCCTVTime, 1000);
+  updateAdminCCTVTime();
+</script>
+
+<script nonce="{{ g.csp_nonce }}">
+  // SVG Strings for toggle states
+  const svgMicOn  = `<svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" style="width:18px;height:18px;"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"></path><path d="M19 10v2a7 7 0 0 1-14 0v-2"></path><line x1="12" y1="19" x2="12" y2="23"></line><line x1="8" y1="23" x2="16" y2="23"></line></svg>`;
+  const svgMicOff = `<svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" style="width:18px;height:18px; color:var(--red);"><line x1="1" y1="1" x2="23" y2="23"></line><path d="M9 9v3a3 3 0 0 0 5.12 2.12M15 9.34V4a3 3 0 0 0-5.94-.6"></path><path d="M17 16.95A7 7 0 0 1 5 12v-2m14 0v2a7 7 0 0 1-.11 1.23"></path><line x1="12" y1="19" x2="12" y2="23"></line><line x1="8" y1="23" x2="16" y2="23"></line></svg>`;
+  const svgCamOn  = `<svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" style="width:18px;height:18px;"><polygon points="23 7 16 12 23 17 23 7"></polygon><rect x="1" y="5" width="15" height="14" rx="2" ry="2"></rect></svg>`;
+  const svgCamOff = `<svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" style="width:18px;height:18px; color:var(--red);"><path d="M16 16v1a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2h2m5.66 0H14a2 2 0 0 1 2 2v3.34l1 1L23 7v10"></path><line x1="1" y1="1" x2="23" y2="23"></line></svg>`;
+
+  // Apply logic to every camera card on the dashboard
+  document.querySelectorAll('.admin-cam-card').forEach(card => {
+    const micBtn = card.querySelector('.admin-mic-btn');
+    const camBtn = card.querySelector('.admin-cam-btn');
+    const feedImg = card.querySelector('.admin-cam-feed');
+    const offOverlay = card.querySelector('.admin-cam-off-overlay'); 
+
+    const snapBtn = card.querySelector('.admin-snap-btn');
+    
+    let isMicOn = false;
+    let isCamOn = false;  
+
+    if (micBtn) {
+      micBtn.addEventListener('click', () => {
+        isMicOn = !isMicOn;
+        micBtn.innerHTML = isMicOn ? svgMicOn : svgMicOff;
+      });
+    }
+
+    if (camBtn) {
+      camBtn.addEventListener('click', () => {
+        isCamOn = !isCamOn;
+        camBtn.innerHTML = isCamOn ? svgCamOn : svgCamOff;
+        camBtn.style.color = isCamOn ? 'var(--text2)' : 'var(--red)';
+        // Stream start/stop is handled by the stream script below
+      });
+    }
+
+    if (snapBtn) {
+      snapBtn.addEventListener('click', (e) => {
+        e.preventDefault();
+        // Use the isStreaming flag from the stream script (card.dataset.streaming)
+        // instead of the separate isCamOn toggle which is out of sync.
+        const isCurrentlyStreaming = card.dataset.streaming === 'true';
+        if (!isCurrentlyStreaming) return alert('Please turn on the camera feed first to take a snapshot.');
+        if (!feedImg || !feedImg.src || feedImg.style.display === 'none') return alert('No active feed to snapshot.');
+        
+        try {
+          const canvas = document.createElement('canvas');
+          canvas.width = feedImg.naturalWidth || 640;
+          canvas.height = feedImg.naturalHeight || 480;
+          const ctx = canvas.getContext('2d');
+          ctx.drawImage(feedImg, 0, 0, canvas.width, canvas.height);
+          
+          const link = document.createElement('a');
+          link.download = `CatchCatchTV_Snapshot_${new Date().toISOString().replace(/[:.]/g, '-')}.png`;
+          link.href = canvas.toDataURL('image/png');
+          link.click();
+        } catch (err) {
+          alert("Snapshot failed. The stream may be cross-origin blocked. Try using the Camera page instead.");
+        }
+      });
+    }
+  });
+
+
+</script>
+
+<script nonce="{{ g.csp_nonce }}">
+  // Mobile Sidebar Toggle Logic
+  document.addEventListener("DOMContentLoaded", () => {
+    const mobileBtn = document.getElementById('mobileMenuBtn');
+    const sidebar = document.querySelector('.sidebar');
+    
+    if (mobileBtn && sidebar) {
+      mobileBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        sidebar.classList.toggle('open');
+      });
+      
+      // Close sidebar if user clicks outside of it on mobile
+      document.addEventListener('click', (e) => {
+        if (window.innerWidth <= 900 && sidebar.classList.contains('open') && !sidebar.contains(e.target)) {
+          sidebar.classList.remove('open');
+        }
+      });
+    }
+  });
+</script>
+
+<script nonce="{{ g.csp_nonce }}">
+  document.addEventListener("DOMContentLoaded", () => {
+    document.querySelectorAll('.admin-cam-card').forEach(card => {
+      const feed = card.querySelector('.admin-cam-feed');
+      if (!feed) return;
+
+      const streamUrl = feed.getAttribute('src');
+      if (!streamUrl) return;
+
+      // Clear src on load — don't stream until admin clicks the cam button
+      feed.removeAttribute('src');
+      feed.style.display = 'none';
+
+      const cctvOverlay = card.querySelector('.cctv-overlay-top');
+      const camOffOverlay = card.querySelector('.admin-cam-off-overlay');
+      const streamOfflineOverlay = card.querySelector('.feed-offline-overlay');
+      const camBtn = card.querySelector('.admin-cam-btn');
+
+      // Hide REC badge on load — only show when stream is actually running
+      if (cctvOverlay) cctvOverlay.style.display = 'none';
+      // Show "Camera is Off" overlay by default so black screen is not blank
+      if (camOffOverlay) { camOffOverlay.style.display = 'flex'; }
+
+      let isStreaming = false;
+
+      function startStream() {
+        feed.onerror = () => {
+          if (feed.hasAttribute('crossorigin')) {
+            feed.removeAttribute('crossorigin');
+            feed.src = streamUrl;
+            return;
+          }
+          // Genuine error — show offline
+          isStreaming = false;
+          card.dataset.streaming = 'false';
+          feed.style.display = 'none';
+          if (cctvOverlay) cctvOverlay.style.display = 'none';
+          if (camOffOverlay) camOffOverlay.style.display = 'none';
+          if (streamOfflineOverlay) { streamOfflineOverlay.style.display = 'flex'; streamOfflineOverlay.style.zIndex = '50'; }
+          if (camBtn) { camBtn.style.opacity = '0.4'; camBtn.style.pointerEvents = 'none'; }
+        };
+
+        isStreaming = true;
+        card.dataset.streaming = 'true';
+        feed.style.display = 'block';
+        feed.style.opacity = '1';
+        if (cctvOverlay) cctvOverlay.style.display = 'flex';
+        if (streamOfflineOverlay) streamOfflineOverlay.style.display = 'none';
+        if (camOffOverlay) camOffOverlay.style.display = 'none';
+        feed.src = streamUrl;
+      }
+
+      function stopStream() {
+        isStreaming = false;
+        card.dataset.streaming = 'false';
+        feed.src = '';
+        feed.style.display = 'none';
+        feed.onerror = null;
+        if (cctvOverlay) cctvOverlay.style.display = 'none'; // hide REC immediately
+        if (streamOfflineOverlay) streamOfflineOverlay.style.display = 'none';
+        if (camOffOverlay) camOffOverlay.style.display = 'flex';
+      }
+
+      // Hook into the cam button — use our own isStreaming flag, not SVG inspection
+      if (camBtn) {
+        camBtn.addEventListener('click', () => {
+          if (!isStreaming) {
+            startStream();
+          } else {
+            stopStream();
+          }
+        });
+      }
+    });
+  });
+</script>
+
+  <!-- Profile Modal -->
+  <div class="profile-modal-overlay" id="profileModalOverlay">
+    <div class="profile-modal">
+      <div class="profile-modal-head">
+        <div class="profile-modal-avatar" id="modalAvatarInitials">?</div>
+        <div class="profile-modal-info">
+          <div class="profile-modal-name" id="modalProfileName">Guest</div>
+          <div class="profile-modal-role" id="modalProfileRole">Guest</div>
+        </div>
+        <button class="profile-modal-close" id="closeProfileModal">
+          <svg width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+        </button>
+      </div>
+      <div class="profile-modal-body">
+        <div class="profile-section">
+          <div class="profile-section-title">
+            <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>
+            Display Nickname
+          </div>
+          <div class="field-group" style="margin-bottom:6px">
+            <input class="field-input" id="modalNicknameInput" type="text" placeholder="3–16 chars: letters, numbers, _ . #" autocomplete="off" maxlength="16">
+          </div>
+          <div class="pw-rules" id="nickRules" style="margin:0 0 8px;">
+            <div class="pw-rule" id="nickRuleLen"><span class="rule-icon">✓</span><span>3–16 characters</span></div>
+            <div class="pw-rule" id="nickRuleChars"><span class="rule-icon">✓</span><span>Letters, numbers, _ . # only</span></div>
+          </div>
+          <div class="ok-box hidden" id="modalNickOk" style="margin:0 0 8px;"></div>
+          <div class="err-box hidden" id="modalNickErr" style="margin:0 0 8px;"></div>
+          <button class="btn-primary" id="modalSaveNickBtn" style="margin:0;">Save Nickname</button>
+        </div>
+        <div class="profile-section">
+          <div class="profile-section-title">
+            <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect><path d="M7 11V7a5 5 0 0 1 10 0v4"></path></svg>
+            Change Password
+          </div>
+          <div class="field-group" style="margin-bottom:8px">
+            <label class="field-label">Current Password</label>
+            <input class="field-input" id="modalOldPw" type="password" placeholder="••••••••" autocomplete="current-password">
+          </div>
+          <div class="field-group" style="margin-bottom:8px">
+            <label class="field-label">New Password</label>
+            <input class="field-input" id="modalNewPw" type="password" placeholder="Min 8 characters" autocomplete="new-password">
+          </div>
+          <div class="pw-rules" id="pwRules" style="margin:0 0 8px;">
+            <div class="pw-rule" id="pwRuleLen"><span class="rule-icon">✓</span><span>At least 8 characters</span></div>
+            <div class="pw-rule" id="pwRuleUpper"><span class="rule-icon">✓</span><span>One uppercase letter</span></div>
+            <div class="pw-rule" id="pwRuleNum"><span class="rule-icon">✓</span><span>One number</span></div>
+            <div class="pw-rule" id="pwRuleSym"><span class="rule-icon">✓</span><span>One special character</span></div>
+          </div>
+          <div class="field-group" style="margin-bottom:10px">
+            <label class="field-label">Confirm New Password</label>
+            <input class="field-input" id="modalConfirmPw" type="password" placeholder="Min 8 characters" autocomplete="new-password">
+          </div>
+          <div id="pwMatchHint" style="font-size:11px;margin:0 0 8px;color:var(--text2);display:none;"></div>
+          <div class="ok-box hidden" id="modalPwOk" style="margin:0 0 8px;"></div>
+          <div class="err-box hidden" id="modalPwErr" style="margin:0 0 8px;"></div>
+          <button class="btn-primary" id="modalChangePwBtn" style="margin:0;">Update Password</button>
+        </div>
+
+        <!-- Delete Account -->
+        <div class="profile-section" style="border-top: 1px solid rgba(214,25,74,.2); margin-top: 4px; padding-top: 16px;">
+          <div class="profile-section-title" style="color: var(--red);">
+            <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"></path><path d="M10 11v6"></path><path d="M14 11v6"></path><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"></path></svg>
+            Delete Account
+          </div>
+          <p style="font-size:12px; color:var(--text2); margin: 0 0 10px; line-height:1.6;">
+            This permanently deletes your account, camera, and all associated data. <strong style="color:var(--red);">This cannot be undone.</strong>
+          </p>
+          <div id="deleteConfirmStep" style="display:none;">
+            <div class="field-group" style="margin-bottom:10px">
+              <label class="field-label">Confirm your password</label>
+              <input class="field-input" id="modalDeletePw" type="password" placeholder="••••••••">
+            </div>
+            <div class="err-box hidden" id="modalDeleteErr" style="margin:0 0 8px;"></div>
+            <div style="display:flex; gap:8px;">
+              <button id="modalConfirmDeleteBtn" style="flex:1; padding:10px; border-radius:8px; border:none; background:var(--red); color:#fff; font-size:13px; font-weight:600; cursor:pointer; letter-spacing:.04em;">Yes, Delete My Account</button>
+              <button id="modalCancelDeleteBtn" style="padding:10px 14px; border-radius:8px; border:1px solid var(--border2); background:transparent; color:var(--text2); font-size:13px; cursor:pointer;">Cancel</button>
+            </div>
+          </div>
+          <button id="modalDeleteAccountBtn" class="btn-primary" style="margin:0; background:rgba(214,25,74,.08); color:var(--red); border:1px solid rgba(214,25,74,.35);">Delete My Account</button>
+        </div>
+
+      </div>
+    </div>
+  </div>
+
+  <script nonce="{{ g.csp_nonce }}">
+  // ── Sidebar collapse ──
+  (function(){
+    var sidebar = document.getElementById('sidebar');
+    var toggle = document.getElementById('sidebarToggle');
+    var STORAGE_KEY = 'cctv_sidebar_collapsed';
+    if (!sidebar || !toggle) return;
+    if (localStorage.getItem(STORAGE_KEY) === '1') sidebar.classList.add('collapsed');
+    toggle.addEventListener('click', function(){
+      sidebar.classList.toggle('collapsed');
+      localStorage.setItem(STORAGE_KEY, sidebar.classList.contains('collapsed') ? '1' : '0');
+    });
+  })();
+
+  // ── Profile modal + sidebar profile init ──
+  (function(){
+    function getCsrfToken() { return document.cookie.match(/csrf_token=([^;]+)/)?.[1] || ''; }
+
+    var username = {{ user.username | tojson }};
+    var role = {{ user.role | tojson }};
+    var initials = username ? username.slice(0,2).toUpperCase() : '?';
+    var isAdmin = role === 'admin';
+
+    // Sidebar profile
+    var avatarEl = document.getElementById('sidebarAvatarInitials');
+    var nameEl = document.getElementById('sidebarProfileName');
+    var roleEl = document.getElementById('sidebarProfileRole');
+    if (avatarEl) avatarEl.textContent = initials;
+    if (nameEl) nameEl.textContent = username;
+    if (roleEl) {
+      roleEl.textContent = isAdmin ? 'Admin' : 'User';
+      roleEl.className = 'profile-role ' + (isAdmin ? 'is-admin' : 'is-user');
+    }
+
+    // Modal profile
+    var mAvatar = document.getElementById('modalAvatarInitials');
+    var mName = document.getElementById('modalProfileName');
+    var mRole = document.getElementById('modalProfileRole');
+    if (mAvatar) mAvatar.textContent = initials;
+    if (mName) mName.textContent = username;
+    if (mRole) {
+      mRole.textContent = isAdmin ? 'Admin' : 'User';
+      mRole.className = 'profile-modal-role ' + (isAdmin ? 'is-admin' : 'is-user');
+    }
+
+    // Modal nickname input pre-fill
+    var nickInput = document.getElementById('modalNicknameInput');
+    if (nickInput) nickInput.value = username;
+
+    // Open/close modal
+    var overlay = document.getElementById('profileModalOverlay');
+    var openBtn = document.getElementById('openProfileModal');
+    var closeBtn = document.getElementById('closeProfileModal');
+    function resetProfileValidation(){
+      ['nickRuleLen','nickRuleChars','pwRuleLen','pwRuleUpper','pwRuleNum','pwRuleSym'].forEach(function(id){
+        var row=document.getElementById(id); if(!row)return;
+        row.classList.remove('met','unmet');
+        var icon=row.querySelector('.rule-icon');
+        if(icon){icon.style.color='var(--text2)';icon.style.borderColor='var(--text2)';icon.style.background='';}
+      });
+      var hint=document.getElementById('pwMatchHint'); if(hint)hint.style.display='none';
+      var nickIn=document.getElementById('modalNicknameInput'); if(nickIn)nickIn.value=username||'';
+      var np=document.getElementById('modalNewPw'); if(np)np.value='';
+      var cp=document.getElementById('modalConfirmPw'); if(cp)cp.value='';
+    }
+    if (openBtn && overlay) {
+      openBtn.addEventListener('click', function(){ overlay.classList.add('open'); resetProfileValidation(); });
+    }
+    if (closeBtn && overlay) {
+      closeBtn.addEventListener('click', function(){ overlay.classList.remove('open'); });
+    }
+    if (overlay) {
+      overlay.addEventListener('click', function(e){ if(e.target===overlay) overlay.classList.remove('open'); });
+    }
+
+    // Real-time rule helper — matches register.html: gray=default, green=met, red=unmet
+    function setRule(iconId, rowId, state){
+      var row = document.getElementById(rowId);
+      if (!row) return;
+      row.classList.remove('met','unmet');
+      var icon = row.querySelector('.rule-icon');
+      if (state === true) {
+        row.classList.add('met');
+        if (icon) { icon.style.color=''; icon.style.borderColor=''; icon.style.background=''; }
+      } else if (state === false) {
+        row.classList.add('unmet');
+        if (icon) { icon.style.color=''; icon.style.borderColor=''; icon.style.background=''; }
+      } else {
+        // default/null — gray, no class
+        if (icon) { icon.style.color='var(--text2)'; icon.style.borderColor='var(--text2)'; icon.style.background=''; }
+      }
+    }
+
+    // Nickname real-time validation
+    if (nickInput) {
+      nickInput.addEventListener('input', function(){
+        var v = this.value;
+        var typing = v.length > 0;
+        setRule('nickRuleLenIcon','nickRuleLen',   typing ? (v.length>=3 && v.length<=16) : null);
+        setRule('nickRuleCharsIcon','nickRuleChars', typing ? (/^[a-zA-Z0-9_.#]+$/.test(v)) : null);
+      });
+    }
+
+    // Password real-time validation
+    var newPwEl = document.getElementById('modalNewPw');
+    var cfmPwEl = document.getElementById('modalConfirmPw');
+    if (newPwEl) {
+      newPwEl.addEventListener('input', function(){
+        var v = this.value;
+        var typing = v.length > 0;
+        setRule('pwRuleLenIcon','pwRuleLen',   typing ? v.length>=8          : null);
+        setRule('pwRuleUpperIcon','pwRuleUpper', typing ? /[A-Z]/.test(v)    : null);
+        setRule('pwRuleNumIcon','pwRuleNum',   typing ? /[0-9]/.test(v)      : null);
+        setRule('pwRuleSymIcon','pwRuleSym',   typing ? /[^A-Za-z0-9]/.test(v): null);
+        if (cfmPwEl && cfmPwEl.value) checkMatch();
+      });
+    }
+    function checkMatch(){
+      var hint = document.getElementById('pwMatchHint');
+      if (!hint||!newPwEl||!cfmPwEl) return;
+      if (!cfmPwEl.value){ hint.style.display='none'; return; }
+      hint.style.display='';
+      var match = newPwEl.value===cfmPwEl.value;
+      hint.textContent = match ? '✓ Passwords match' : '✗ Passwords do not match';
+      hint.style.color  = match ? 'var(--green)' : 'var(--red)';
+    }
+    if (cfmPwEl) cfmPwEl.addEventListener('input', checkMatch);
+
+    // Save nickname
+    var saveNickBtn = document.getElementById('modalSaveNickBtn');
+    var nickOk = document.getElementById('modalNickOk');
+    var nickErr = document.getElementById('modalNickErr');
+    if (saveNickBtn) {
+      saveNickBtn.addEventListener('click', async function(){
+        var val = (nickInput ? nickInput.value : '').trim();
+        nickOk.classList.add('hidden'); nickErr.classList.add('hidden');
+        if (!val) { nickErr.textContent='Please enter a nickname.'; nickErr.classList.remove('hidden'); return; }
+        if (val.length < 3 || val.length > 16) { nickErr.textContent='Nickname must be 3–16 characters.'; nickErr.classList.remove('hidden'); return; }
+        if (!/^[a-zA-Z0-9_.#]+$/.test(val)) { nickErr.textContent='Only letters, numbers, _ . # allowed.'; nickErr.classList.remove('hidden'); return; }
+        saveNickBtn.disabled = true;
+        try {
+          var r = await fetch('/api/account/nickname', {method:'POST',credentials:'include',headers:{'Content-Type':'application/json','X-CSRFToken':getCsrfToken()},body:JSON.stringify({nickname:val})});
+          var d = await r.json();
+          if (d.ok) {
+            nickOk.textContent = 'Nickname updated!'; nickOk.classList.remove('hidden');
+            if (nameEl) nameEl.textContent = val;
+            if (mName) mName.textContent = val;
+            if (avatarEl) avatarEl.textContent = val.slice(0,2).toUpperCase();
+            if (mAvatar) mAvatar.textContent = val.slice(0,2).toUpperCase();
+          } else { nickErr.textContent = d.error||d.message||'Update failed.'; nickErr.classList.remove('hidden'); }
+        } catch(e) { nickErr.textContent='Network error.'; nickErr.classList.remove('hidden'); }
+        saveNickBtn.disabled = false;
+      });
+    }
+
+    // Change password
+    var changePwBtn = document.getElementById('modalChangePwBtn');
+    var pwOk = document.getElementById('modalPwOk');
+    var pwErr = document.getElementById('modalPwErr');
+    if (changePwBtn) {
+      changePwBtn.addEventListener('click', async function(){
+        pwOk.classList.add('hidden'); pwErr.classList.add('hidden');
+        var old = document.getElementById('modalOldPw').value;
+        var np = newPwEl ? newPwEl.value : '';
+        var cp = cfmPwEl ? cfmPwEl.value : '';
+        if (!old)  { pwErr.textContent='Current password is required.'; pwErr.classList.remove('hidden'); return; }
+        if (!np)   { pwErr.textContent='New password is required.'; pwErr.classList.remove('hidden'); return; }
+        if (!cp)   { pwErr.textContent='Please confirm your new password.'; pwErr.classList.remove('hidden'); return; }
+        if (np.length < 8)           { pwErr.textContent='Password must be at least 8 characters.'; pwErr.classList.remove('hidden'); return; }
+        if (!/[A-Z]/.test(np))       { pwErr.textContent='Password must contain an uppercase letter.'; pwErr.classList.remove('hidden'); return; }
+        if (!/[0-9]/.test(np))       { pwErr.textContent='Password must contain a number.'; pwErr.classList.remove('hidden'); return; }
+        if (!/[^A-Za-z0-9]/.test(np)){ pwErr.textContent='Password must contain a special character.'; pwErr.classList.remove('hidden'); return; }
+        if (np !== cp)               { pwErr.textContent='Passwords do not match.'; pwErr.classList.remove('hidden'); return; }
+        changePwBtn.disabled = true;
+        try {
+          var r = await fetch('/api/account/password', {method:'POST',credentials:'include',headers:{'Content-Type':'application/json','X-CSRFToken':getCsrfToken()},body:JSON.stringify({old_password:old,new_password:np})});
+          var d = await r.json();
+          if (d.ok) {
+            pwOk.textContent='Password updated! Logging out…'; pwOk.classList.remove('hidden');
+            document.getElementById('modalOldPw').value='';
+            if (newPwEl) newPwEl.value=''; if (cfmPwEl) cfmPwEl.value='';
+            setTimeout(function(){ window.location.href = '/login'; }, 1500);
+          } else { pwErr.textContent=d.error||d.message||'Update failed.'; pwErr.classList.remove('hidden'); }
+        } catch(e) { pwErr.textContent='Network error.'; pwErr.classList.remove('hidden'); }
+        changePwBtn.disabled = false;
+      });
+    }
+
+    // Delete account
+    var deleteBtn        = document.getElementById('modalDeleteAccountBtn');
+    var confirmStep      = document.getElementById('deleteConfirmStep');
+    var confirmDeleteBtn = document.getElementById('modalConfirmDeleteBtn');
+    var cancelDeleteBtn  = document.getElementById('modalCancelDeleteBtn');
+    var deleteErr        = document.getElementById('modalDeleteErr');
+    if (deleteBtn) {
+      deleteBtn.addEventListener('click', function () {
+        deleteBtn.style.display = 'none';
+        confirmStep.style.display = 'block';
+        document.getElementById('modalDeletePw').value = '';
+        deleteErr.classList.add('hidden');
+      });
+    }
+    if (cancelDeleteBtn) {
+      cancelDeleteBtn.addEventListener('click', function () {
+        confirmStep.style.display = 'none';
+        deleteBtn.style.display = '';
+        deleteErr.classList.add('hidden');
+      });
+    }
+    if (confirmDeleteBtn) {
+      confirmDeleteBtn.addEventListener('click', async function () {
+        var pw = document.getElementById('modalDeletePw').value;
+        deleteErr.classList.add('hidden');
+        if (!pw) { deleteErr.textContent = 'Password is required.'; deleteErr.classList.remove('hidden'); return; }
+        confirmDeleteBtn.disabled = true;
+        confirmDeleteBtn.textContent = 'Deleting…';
+        try {
+          var r = await fetch('/api/account/delete', {
+            method: 'POST',
+            credentials: 'include',
+            headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCsrfToken() },
+            body: JSON.stringify({ password: pw })
+          });
+          if (!r.ok && r.status !== 403 && r.status !== 400) throw new Error('Server error ' + r.status);
+          var d = await r.json();
+          if (d.ok) {
+            window.location.href = '/login';
+          } else {
+            deleteErr.textContent = d.error || 'Deletion failed.';
+            deleteErr.classList.remove('hidden');
+            confirmDeleteBtn.disabled = false;
+            confirmDeleteBtn.textContent = 'Yes, Delete My Account';
+          }
+        } catch (e) {
+          deleteErr.textContent = 'Network error.';
+          deleteErr.classList.remove('hidden');
+          confirmDeleteBtn.disabled = false;
+          confirmDeleteBtn.textContent = 'Yes, Delete My Account';
+        }
+      });
+    }
+  })();
+  </script>
+
+  <script nonce="{{ g.csp_nonce }}">
+  document.addEventListener("DOMContentLoaded", () => {
+    
+    // ── 1. Collapsible User Sections (CSP Safe) ──
+    document.querySelectorAll('.user-section-header').forEach(btn => {
+      btn.addEventListener('click', function() {
+        const section = this.closest('.user-section');
+        const subgrid = section.querySelector('.user-cam-subgrid');
+        const chevron = this.querySelector('.user-section-chevron svg');
+        const isOpen  = this.getAttribute('aria-expanded') === 'true';
+
+        if (isOpen) {
+          // Close it
+          subgrid.style.maxHeight = subgrid.scrollHeight + 'px'; 
+          void subgrid.offsetHeight; 
+          
+          subgrid.style.maxHeight = '0';
+          subgrid.style.opacity = '0';
+          subgrid.style.paddingBottom = '0';
+          
+          if(chevron) chevron.style.transform = 'rotate(180deg)';
+          this.setAttribute('aria-expanded', 'false');
+        } else {
+          // Open it
+          subgrid.style.paddingBottom = '16px';
+          subgrid.style.opacity = '1';
+          subgrid.style.maxHeight = subgrid.scrollHeight + 50 + 'px'; 
+          
+          if(chevron) chevron.style.transform = 'rotate(0deg)';
+          this.setAttribute('aria-expanded', 'true');
+          
+          setTimeout(() => {
+            if (this.getAttribute('aria-expanded') === 'true') {
+              subgrid.style.maxHeight = 'none';
+            }
+          }, 300);
+        }
+      });
+    });
+
+    // ── Unified Combined Filtering (Search, Tags, Role, Status, Feed, Features) ──
+  // ══════════════════════════════════════
+  //  FILTER BAR — search + dropdown
+  // ══════════════════════════════════════
+
+    let activeRole     = 'all';
+    let activeStatus   = 'all';
+    let activeFeed     = 'all';
+    let activeFeatures = [];
+
+    const searchInput      = document.getElementById('camSearchInput');
+    const searchClearBtn   = document.getElementById('searchClearBtn');
+    const filterDropdownBtn   = document.getElementById('filterDropdownBtn');
+    const filterDropdownPanel = document.getElementById('filterDropdownPanel');
+
+    // ── Teleport panel to <body> so it's above ALL stacking contexts ──
+    document.body.appendChild(filterDropdownPanel);
+    const roleBtns         = document.querySelectorAll('.role-filter-btn');
+    const statusBtns       = document.querySelectorAll('.status-filter-btn');
+    const feedBtns         = document.querySelectorAll('.feed-filter-btn');
+    const featureBtns      = document.querySelectorAll('.feature-filter-btn');
+    const clearBtn         = document.getElementById('clearFiltersBtn');
+    const noResultsClearLink = document.getElementById('noResultsClear');
+    const camCards         = document.querySelectorAll('.admin-cam-card');
+    const resultsCount     = document.getElementById('resultsCount');
+    const activeChips      = document.getElementById('activeChips');
+    const noResultsMsg     = document.getElementById('noResultsMsg');
+
+    const STATUS_LABELS = { online: 'Online', offline: 'Offline' };
+    const ROLE_LABELS   = { admin: 'Admins', user: 'Guests' };
+    const FEED_LABELS   = { live: 'Live', cam_off: 'Cam Off', unconfigured: 'Not Configured' };
+    const FEAT_LABELS   = { ai_on: 'AI On', mic_on: 'Mic On' };
+
+    // ── Dropdown toggle — panel is position:fixed, positioned via JS ─────────────────────
+    function positionDropdown() {
+      const btnRect = filterDropdownBtn.getBoundingClientRect();
+      filterDropdownPanel.style.top  = (btnRect.bottom + 6) + 'px';
+      filterDropdownPanel.style.left = btnRect.left + 'px';
+    }
+    filterDropdownBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const isOpen = filterDropdownPanel.classList.toggle('open');
+      filterDropdownBtn.classList.toggle('open', isOpen);
+      if (isOpen) positionDropdown();
+    });
+    document.addEventListener('click', (e) => {
+      if (!filterDropdownBtn.closest('.filter-dropdown-wrap').contains(e.target) &&
+          !filterDropdownPanel.contains(e.target)) {
+        filterDropdownPanel.classList.remove('open');
+        filterDropdownBtn.classList.remove('open');
+      }
+    });
+    window.addEventListener('scroll', () => {
+      if (filterDropdownPanel.classList.contains('open')) positionDropdown();
+    }, true);
+    // Keep panel open when clicking inside it
+    filterDropdownPanel.addEventListener('click', (e) => e.stopPropagation());
+
+    // ── Search ────────────────────────────
+    searchInput.addEventListener('input', () => {
+      searchInput.closest('.search-box').classList.toggle('has-value', searchInput.value.length > 0);
+      applyDashFilters();
+    });
+    searchClearBtn.addEventListener('click', () => {
+      searchInput.value = '';
+      searchInput.closest('.search-box').classList.remove('has-value');
+      applyDashFilters();
+      searchInput.focus();
+    });
+
+    // ── Main filter logic ─────────────────
+    function applyDashFilters() {
+      const query = (searchInput.value || '').toLowerCase();
+
+      let textQuery = query;
+      let tagRole = null, tagStatus = null, tagAi = null;
+      const tags = query.match(/(\w+):(\w+)/g);
+      if (tags) {
+        tags.forEach(tag => {
+          const [key, val] = tag.split(':');
+          if (key === 'role')   tagRole = val;
+          if (key === 'status') tagStatus = val;
+          if (key === 'ai' && val === 'on') tagAi = true;
+          textQuery = textQuery.replace(tag, '').trim();
+        });
+      }
+
+      let countOnline = 0, countOffline = 0, countAdmin = 0, countGuest = 0;
+      let visibleCount = 0;
+
+      camCards.forEach(card => {
+        const nameText    = (card.querySelector('.cam-name')?.textContent || '').toLowerCase();
+        const cardRole    = card.getAttribute('data-role') || 'user';
+        const isConfigured = card.querySelector('.admin-cam-feed') !== null;
+        const isStreaming  = card.dataset.streaming === 'true';
+        const hasAi       = card.querySelector('.ai-text') !== null;
+        const micBtn      = card.querySelector('.admin-mic-btn');
+        const isMicActive = micBtn && !micBtn.innerHTML.includes('x1="1" y1="1" x2="23" y2="23"');
+
+        if (isStreaming) countOnline++; else countOffline++;
+        if (cardRole === 'admin') countAdmin++; else countGuest++;
+
+        const matchesSearch = textQuery === '' || nameText.includes(textQuery);
+
+        const targetRole = tagRole || activeRole;
+        const matchesRole = targetRole === 'all' || cardRole === targetRole || (targetRole === 'guest' && cardRole === 'user');
+
+        const targetStatus = tagStatus || activeStatus;
+        let matchesStatus = targetStatus === 'all';
+        if (targetStatus === 'online')  matchesStatus = isStreaming;
+        if (targetStatus === 'offline') matchesStatus = !isStreaming;
+
+        let matchesFeed = activeFeed === 'all';
+        if (activeFeed === 'live')         matchesFeed = isStreaming;
+        if (activeFeed === 'cam_off')      matchesFeed = isConfigured && !isStreaming;
+        if (activeFeed === 'unconfigured') matchesFeed = !isConfigured;
+
+        let matchesFeatures = true;
+        if (tagAi || activeFeatures.includes('ai_on'))  matchesFeatures = matchesFeatures && hasAi;
+        if (activeFeatures.includes('mic_on')) matchesFeatures = matchesFeatures && isMicActive;
+
+        const visible = matchesSearch && matchesRole && matchesStatus && matchesFeed && matchesFeatures;
+        card.style.display = visible ? 'flex' : 'none';
+        if (visible) visibleCount++;
+      });
+
+      updateCountBadges(countOnline, countOffline, countAdmin, countGuest);
+      updateResultsCount(visibleCount, camCards.length);
+      updateActiveChips();
+      if (noResultsMsg) noResultsMsg.style.display = visibleCount === 0 ? 'block' : 'none';
+
+      const hasFilters = activeRole !== 'all' || activeStatus !== 'all' || activeFeed !== 'all' ||
+                         activeFeatures.length > 0 || searchInput.value.length > 0;
+      filterDropdownBtn.classList.toggle('active-filters', hasFilters);
+      if (clearBtn) clearBtn.classList.toggle('visible', hasFilters);
+    }
+
+    function updateCountBadges(online, offline, admin, guest) {
+      const set = (id, count) => {
+        const el = document.getElementById(id);
+        if (!el) return;
+        el.textContent = count;
+        el.classList.toggle('zero', count === 0);
+      };
+      set('countOnline', online);
+      set('countOffline', offline);
+      set('countAdmin', admin);
+      set('countGuest', guest);
+    }
+
+    function updateResultsCount(visible, total) {
+      if (!resultsCount) return;
+      if (visible === total) {
+        resultsCount.innerHTML = `Showing <strong>${total}</strong> camera${total !== 1 ? 's' : ''}`;
+      } else {
+        resultsCount.innerHTML = `<strong>${visible}</strong> of <strong>${total}</strong> match`;
+      }
+    }
+
+    function updateActiveChips() {
+      if (!activeChips) return;
+      activeChips.innerHTML = '';
+      const xSvg = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>`;
+      const addChip = (label, onRemove, isFeat = false) => {
+        const chip = document.createElement('button');
+        chip.type = 'button';
+        chip.className = 'active-chip' + (isFeat ? ' feat' : '');
+        chip.innerHTML = `${label}${xSvg}`;
+        chip.addEventListener('click', onRemove);
+        activeChips.appendChild(chip);
+      };
+      if (searchInput.value) addChip(`"${searchInput.value}"`, () => {
+        searchInput.value = '';
+        searchInput.closest('.search-box').classList.remove('has-value');
+        applyDashFilters();
+      });
+      if (activeStatus !== 'all') addChip(STATUS_LABELS[activeStatus] || activeStatus, () => {
+        statusBtns.forEach(b => b.classList.remove('active'));
+        document.querySelector('.status-filter-btn[data-status="all"]')?.classList.add('active');
+        activeStatus = 'all'; applyDashFilters();
+      });
+      if (activeRole !== 'all') addChip(ROLE_LABELS[activeRole] || activeRole, () => {
+        roleBtns.forEach(b => b.classList.remove('active'));
+        document.querySelector('.role-filter-btn[data-role="all"]')?.classList.add('active');
+        activeRole = 'all'; applyDashFilters();
+      });
+      if (activeFeed !== 'all') addChip(FEED_LABELS[activeFeed] || activeFeed, () => {
+        feedBtns.forEach(b => b.classList.remove('active'));
+        document.querySelector('.feed-filter-btn[data-feed="all"]')?.classList.add('active');
+        activeFeed = 'all'; applyDashFilters();
+      });
+      activeFeatures.forEach(feat => addChip(FEAT_LABELS[feat] || feat, () => {
+        document.querySelector(`.feature-filter-btn[data-feature="${feat}"]`)?.classList.remove('active');
+        activeFeatures = activeFeatures.filter(f => f !== feat);
+        applyDashFilters();
+      }, true));
+    }
+
+    // ── Bind single-select groups ─────────
+    function bindSingleSelect(btns, setVar, attrName) {
+      btns.forEach(btn => {
+        btn.addEventListener('click', function() {
+          btns.forEach(b => b.classList.remove('active'));
+          this.classList.add('active');
+          setVar(this.getAttribute(attrName));
+          applyDashFilters();
+        });
+      });
+    }
+    bindSingleSelect(roleBtns,   v => activeRole = v,   'data-role');
+    bindSingleSelect(statusBtns, v => activeStatus = v, 'data-status');
+    bindSingleSelect(feedBtns,   v => activeFeed = v,   'data-feed');
+
+    // ── Feature multi-select ──────────────
+    featureBtns.forEach(btn => {
+      btn.addEventListener('click', function() {
+        this.classList.toggle('active');
+        const feat = this.getAttribute('data-feature');
+        activeFeatures = this.classList.contains('active')
+          ? [...activeFeatures, feat]
+          : activeFeatures.filter(f => f !== feat);
+        applyDashFilters();
+      });
+    });
+
+    // ── Clear all ─────────────────────────
+    function clearAll() {
+      searchInput.value = '';
+      searchInput.closest('.search-box').classList.remove('has-value');
+      roleBtns.forEach(b => b.classList.remove('active'));
+      document.querySelector('.role-filter-btn[data-role="all"]')?.classList.add('active');
+      activeRole = 'all';
+      statusBtns.forEach(b => b.classList.remove('active'));
+      document.querySelector('.status-filter-btn[data-status="all"]')?.classList.add('active');
+      activeStatus = 'all';
+      feedBtns.forEach(b => b.classList.remove('active'));
+      document.querySelector('.feed-filter-btn[data-feed="all"]')?.classList.add('active');
+      activeFeed = 'all';
+      featureBtns.forEach(b => b.classList.remove('active'));
+      activeFeatures = [];
+      applyDashFilters();
+    }
+
+    if (clearBtn) clearBtn.addEventListener('click', clearAll);
+    if (noResultsClearLink) noResultsClearLink.addEventListener('click', e => { e.preventDefault(); clearAll(); });
+
+    document.querySelectorAll('.admin-cam-btn, .admin-mic-btn').forEach(btn => {
+      btn.addEventListener('click', () => setTimeout(applyDashFilters, 50));
+    });
+
+    setTimeout(() => applyDashFilters(), 150);
+  });
+</script>
+
+<script nonce="{{ g.csp_nonce }}">
+  document.addEventListener("DOMContentLoaded", () => {
+    document.querySelectorAll('.admin-fullscreen-btn').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        const cameraCard = e.currentTarget.closest('.admin-cam-card');
+        
+        if (!document.fullscreenElement) {
+          cameraCard.requestFullscreen().catch(err => {
+            console.error(`Error attempting to enable fullscreen: ${err.message}`);
+          });
+        } else {
+          document.exitFullscreen();
+        }
+      });
+    });
+  });
+</script>
+
+  <!-- ── FAQ Modal ── -->
+  <div class="profile-modal-overlay" id="faqModalOverlay">
+    <div class="profile-modal" style="max-width:560px;">
+      <div class="profile-modal-head">
+        <div class="profile-modal-avatar" style="background:linear-gradient(135deg,#0070cc,#9b59b6);">
+          <svg width="22" height="22" fill="none" stroke="#fff" stroke-width="2.5" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"></circle><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"></path><line x1="12" y1="17" x2="12.01" y2="17"></line></svg>
+        </div>
+        <div class="profile-modal-info">
+          <div class="profile-modal-name">Help &amp; FAQ</div>
+          <div class="profile-modal-role" style="color:var(--text2);font-size:11px;">Step-by-step guides &amp; answers</div>
+        </div>
+        <button class="profile-modal-close" id="closeFaqModal">
+          <svg width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+        </button>
+      </div>
+      <div style="padding:12px 16px;border-bottom:1px solid var(--border);">
+        <div style="position:relative;">
+          <svg style="position:absolute;left:10px;top:50%;transform:translateY(-50%);color:var(--text2);pointer-events:none;" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+          <input id="faqSearchInput" type="text" placeholder="Search help topics…" style="width:100%;box-sizing:border-box;padding:8px 10px 8px 32px;border:1px solid var(--border2);border-radius:8px;background:var(--bg3);color:var(--text);font-size:13px;outline:none;">
+        </div>
+        <div id="faqNoResults" style="display:none;text-align:center;padding:10px 0 2px;font-size:12px;color:var(--text2);">No results found.</div>
+      </div>
+      <div class="profile-modal-body" style="padding:12px 16px;">
+        <div id="faqModalList" style="display:flex;flex-direction:column;gap:6px;"></div>
+      </div>
+    </div>
+  </div>
+
+<script nonce="{{ g.csp_nonce }}">
+// ── FAQ Modal ──
+document.addEventListener('DOMContentLoaded', function() {
+(function(){
+  var faqs=[
+    {q:'📖 Quick Start — How to use CatchCatchTV',a:'Step 1: Add your cameras in Settings → Camera Management. Step 2: View live feeds on the Dashboard. Step 3: Set up Discord alerts in Settings → Notifications. Step 4: Admins can review threats, block IPs, and manage users in the Admin panel. Step 5: Manage your profile (nickname, password) by clicking your avatar in the top-left sidebar.'},
+    {q:'What is CatchCatchTV?',a:'CatchCatchTV is a smart security camera management system. It lets you add, view, and manage IP cameras, monitor live feeds, and receive real-time threat alerts — all from one dashboard.'},
+    {q:'🏠 Sidebar — what each button does',a:'Dashboard — all camera live feeds in a grid. Camera — detailed single-camera view. Settings — manage cameras, notifications, and your account. Admin (admins only) — system logs, IP blocking, user management, security config. Dark Mode — switches theme. Help & FAQ (? icon) — opens this panel. Your avatar — opens the profile panel.'},
+    {q:'📺 Dashboard page — what each element does',a:'Each camera card shows the live stream and label. Click a card to expand. If a camera shows "Offline" the stream URL is unreachable. The alert counter in the header shows unread threat events.'},
+    {q:'📷 Camera page — what each button does',a:'Play/Pause — start or stop the stream. Fullscreen icon — expand to fill your screen (Escape to exit). AI toggle — enable motion detection for that camera. The camera selector at the top lets you switch cameras.'},
+    {q:'How do I add a camera?',a:'Step 1: Click Settings in the sidebar. Step 2: Scroll to Camera Management and click Add Camera. Step 3: Enter a label and stream URL (rtsp://, http://, or https://). Step 4: Optionally enable AI detection. Step 5: Click Save Camera. The camera appears on your Dashboard.'},
+    {q:'How do I edit or delete a camera?',a:'Go to Settings → Camera Management. Edit the label or URL in-place and click Save. To delete: click the red Delete button and confirm. Deletion is permanent.'},
+    {q:'⚙️ Settings page — what each section does',a:'Camera Management — add, edit, remove cameras. Discord Webhook — paste a Discord webhook URL for real-time alerts. Admin Webhook (admins only) — system-wide alert channel. Click Save in each section after changes.'},
+    {q:'How do I set up Discord notifications?',a:'Step 1: In Discord, Server Settings → Integrations → Webhooks → New Webhook. Step 2: Choose a channel and copy the URL. Step 3: Paste into CatchCatchTV Settings → Discord Webhook URL. Step 4: Click Save Webhook.'},
+    {q:'How do I change my nickname?',a:'Click your avatar (top-left sidebar) to open the profile panel. In the Display Nickname field, type your new name (3–16 characters, letters/numbers/_ . #). Click Save Nickname.'},
+    {q:'How do I change my password?',a:'Click your avatar to open the profile panel. Under Change Password: enter your current password, then new password (8+ characters, one uppercase, one number), confirm it, click Update Password. You will be logged out after.'},
+    {q:'What does "Active Threats" mean?',a:'Active Threats counts IPs flagged for suspicious activity (failed logins, honeypot scans). Admins: click the Active Threats card on the Admin panel to jump to the Security tab and review or block those IPs.'},
+    {q:'🛡️ Admin — Logs tab',a:'The main system event log. Filter by IP, severity (Info/Notice/Alert/Critical), or user. Click any IP to open a popup — block, whitelist, or view the full event timeline. Use Refresh to reload.'},
+    {q:'🛡️ Admin — Blocked IPs tab',a:'All currently blocked IPs with reason and expiry. Click Unblock to remove. To block manually: Security tab → Manual IP Control.'},
+    {q:'🛡️ Admin — Users tab',a:'All registered accounts with role and last activity. Click the red trash icon to delete a user permanently.'},
+    {q:'🛡️ Admin — Roles tab',a:'Grant or revoke admin privileges per user. Admins access the Admin panel, logs, IP blocking, and user management.'},
+    {q:'🛡️ Admin — Security tab',a:'Automated Defense: set failed-login threshold for auto-block. Emergency Controls: maintenance mode or whitelist-only lockdown. Manual IP Control: block/whitelist any IP, reputation lookup, reverse DNS. Active Threats + Threat Timeline panels.'},
+    {q:'How do I enable Dark Mode?',a:'Click the moon icon "Dark Mode" in the left sidebar. Preference is saved across all pages. Click again (sun icon) to switch back to Light Mode.'},
+    {q:'Why is my camera showing "Offline"?',a:'Causes: (1) Camera is off or disconnected. (2) Stream URL wrong — must start with rtsp://, http://, or https://. (3) Firewall blocking the port. (4) Camera needs credentials in URL, e.g. rtsp://user:pass@ip:port/stream.'},
+    {q:'How do I delete my account?',a:'Open the profile panel (click your avatar). Scroll to the red Delete Account section. Click Delete My Account, enter your password, confirm. Permanent, cannot be undone.'}
+  ];
+  function buildFaqItems(list,query){
+    list.innerHTML='';
+    var q=(query||'').toLowerCase().trim();
+    var filtered=q?faqs.filter(function(f){return f.q.toLowerCase().includes(q)||f.a.toLowerCase().includes(q);}):faqs;
+    var noResults=document.getElementById('faqNoResults');
+    if(noResults)noResults.style.display=filtered.length===0?'block':'none';
+    filtered.forEach(function(item){
+      var wrapper=document.createElement('div');
+      wrapper.style.cssText='border:1px solid var(--border2);border-radius:8px;overflow:hidden;';
+      var btn=document.createElement('button');
+      btn.style.cssText='width:100%;display:flex;align-items:center;justify-content:space-between;gap:8px;padding:10px 12px;background:transparent;border:none;cursor:pointer;font-size:12px;font-weight:600;color:var(--text);text-align:left;line-height:1.4;';
+      var displayQ=item.q;
+      if(q){try{var _esc=q.replace(/[-[\]{}()*+?.,\\^$|#\s]/g,'\\$&');var re=new RegExp('('+_esc+')','gi');displayQ=item.q.replace(re,'<mark style="background:rgba(0,112,204,.25);color:var(--blue);border-radius:2px;">$1</mark>');}catch(ex){}}
+      btn.innerHTML='<span>'+displayQ+'</span><svg style="flex-shrink:0;transition:transform .2s" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><polyline points="6 9 12 15 18 9"></polyline></svg>';
+      var body=document.createElement('div');
+      body.style.cssText='display:none;padding:0 12px 10px;font-size:12px;color:var(--text2);line-height:1.7;border-top:1px solid var(--border);';
+      body.textContent=item.a;
+      if(q&&filtered.length===1){body.style.display='block';btn.querySelector('svg').style.transform='rotate(180deg)';}
+      btn.addEventListener('click',function(){var open=body.style.display!=='none';body.style.display=open?'none':'block';btn.querySelector('svg').style.transform=open?'':'rotate(180deg)';});
+      wrapper.appendChild(btn);wrapper.appendChild(body);list.appendChild(wrapper);
+    });
+  }
+  var faqOverlay=document.getElementById('faqModalOverlay');
+  var openFaqBtn=document.getElementById('openFaqModal');
+  var closeFaqBtn=document.getElementById('closeFaqModal');
+  var faqList=document.getElementById('faqModalList');
+  var faqSearch=document.getElementById('faqSearchInput');
+  function openFaq(){if(!faqOverlay)return;faqOverlay.classList.add('open');buildFaqItems(faqList,'');if(faqSearch){faqSearch.value='';setTimeout(function(){faqSearch.focus();},80);}}
+  function closeFaq(){if(faqOverlay)faqOverlay.classList.remove('open');}
+  // Direct listeners — IIFE runs after markup exists so elements are found
+  if(openFaqBtn)openFaqBtn.addEventListener('click',function(e){e.stopPropagation();openFaq();});
+  if(closeFaqBtn)closeFaqBtn.addEventListener('click',function(e){e.stopPropagation();closeFaq();});
+  // Delegation fallback for any edge case
+  document.addEventListener('click',function(e){
+    var btn=e.target.closest('#openFaqModal');
+    if(btn){openFaq();return;}
+    var close=e.target.closest('#closeFaqModal');
+    if(close){closeFaq();return;}
+    if(e.target===faqOverlay){closeFaq();return;}
+  });
+  if(faqSearch)faqSearch.addEventListener('input',function(){buildFaqItems(faqList,faqSearch.value);});
+  document.addEventListener('keydown',function(e){if(e.key==='Escape'&&faqOverlay&&faqOverlay.classList.contains('open'))closeFaq();});
+  window.openFaqModal=openFaq;
+})();
+});
+</script>
+
+<script nonce="{{ g.csp_nonce }}">
+// Dark Mode toggle for Dashboard
+(function() {
+  const DARK_KEY = 'cctv_dark_mode';
+  const toggleRow = document.getElementById('darkModeToggleRow');
+  const icon = document.getElementById('darkModeIcon');
+  const label = document.getElementById('darkModeLabel');
+  function applyDark(on) {
+    document.documentElement.classList.toggle('dark-mode', on);
+    if (icon) {
+      icon.innerHTML = on
+        ? '<circle cx="12" cy="12" r="5"></circle><line x1="12" y1="1" x2="12" y2="3"></line><line x1="12" y1="21" x2="12" y2="23"></line><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line><line x1="1" y1="12" x2="3" y2="12"></line><line x1="21" y1="12" x2="23" y2="12"></line><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line>'
+        : '<path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path>';
+    }
+    if (label) label.textContent = on ? 'Light Mode' : 'Dark Mode';
+  }
+  applyDark(localStorage.getItem(DARK_KEY) === '1');
+  if (toggleRow) {
+    toggleRow.addEventListener('click', function() {
+      const on = !document.documentElement.classList.contains('dark-mode');
+      localStorage.setItem(DARK_KEY, on ? '1' : '0');
+      applyDark(on);
+    });
+  }
+})();
+</script>
+
+</body>
+</html>
