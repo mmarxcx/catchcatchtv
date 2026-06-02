@@ -31,13 +31,13 @@ def create_app():
                 "Generate one with: python -c \"import secrets; print(secrets.token_hex(32))\""
             )
         else:
-            secret = "dev-only-insecure-key-change-in-production"
+            secret = "secret123"
     app.config["SECRET_KEY"] = secret
 
     # Fix Render/Railway postgres:// to postgresql://
     db_url = os.environ.get(
         "DATABASE_URL",
-        "postgresql://camuser:campass123@localhost:5432/catchcatchtv"
+        "postgresql://username:password@localhost:5432/catchcatchtv_db"
     )
     if db_url.startswith("postgres://"):
         db_url = db_url.replace("postgres://", "postgresql://", 1)
