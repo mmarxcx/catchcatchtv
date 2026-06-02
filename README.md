@@ -5,15 +5,14 @@ A web-based CCTV monitoring system designed for secure, real-time surveillance.
 **Deployment Link https://catchcatchtv.up.railway.app/login**
 
 ## Core Features
-• **Secure Access & Authentication**
-• **System Alerts & Logs**
-• **Real-time Surveillance Monitoring**
-• **AI Object Detection (toggleable)**
-• **Monitoring Dashboard for User Stream Management**
-• **IP Blocking & Role Assignment**
-• **Network Stream Integration**
-• **Automated Alerts for Discord**
-• **Custom Nickname Display**
+* **Secure Access & Authentication** - allows user to autheticate using their username or email
+* **System Alerts & Logs** - records the IP address, the time of log, and detection of the guest using the system
+* **Real-time Surveillance Monitoring** - allows connection to a cctv by pasting the stream url in the settings
+* **AI Object Detection (toggleable)** - object and range AI detection
+* **Monitoring Dashboard for User Stream Management** - allows admin to oversee all the users streaming camera
+* **IP Blocking & Role Assignment** - suspicious account may be blocked by the admin, and the role of a guest may be upgraded to admin
+* **Automated Alerts for Discord** - allows user to link the system logs to their discord
+* **Custom Nickname Display** - user may customize their preferred nickname to appear in the system
 
 ##  Setup Instructions
 
