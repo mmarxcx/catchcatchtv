@@ -37,7 +37,7 @@ def create_app():
     # Fix Render/Railway postgres:// to postgresql://
     db_url = os.environ.get(
         "DATABASE_URL",
-        "postgresql://username:password@localhost:5432/catchcatchtv_db"
+        "postgresql://camuser:campass123@localhost:5432/catchcatchtv_db"
     )
     if db_url.startswith("postgres://"):
         db_url = db_url.replace("postgres://", "postgresql://", 1)
