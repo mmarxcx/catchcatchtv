@@ -2,7 +2,7 @@
 
 A web-based CCTV monitoring system designed for secure, real-time surveillance.
 
-**Deployment Link https://catchcatchtv.up.railway.app/login**
+**Live Link https://catchcatchtv.up.railway.app/login**
 
 ## Core Features
 * **Secure Access & Authentication** - allows user to autheticate using their username or email
