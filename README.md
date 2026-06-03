@@ -46,25 +46,25 @@ python main.py
 ```
 
                                         ┌─────────────────────┐
-                                        │      INTERNET       │
+                                        │       INTERNET      │
                                         └──────────┬──────────┘
                                                    │
                                                    │
                                   ┌────────────────┴────────────────┐
                                   │      ROUTER / INTERNET HUB      │
-                                  │    Admin  │Passwword: [password]
+                                  │   Admin  │Passwword: [password] │
                                   └────────────────┬────────────────┘
                                                    │
                                                    │
                                   ┌────────────────┴────────────────┐
-                                  │        NETWORK SWITCH         
-                                  │   
+                                  │         NETWORK SWITCH          │      
+                                  │                                 │
                                   └───┬──────────┬──────────┬───────┘
                                       │          │          │
                                       │          │          │
 
       ┌────────────┴────────────┐   ┌───────────┴───────────┐   ┌─────────────┴─────────────┐
-      │     MAIN SYSTEM SERVER  │   │      POSTGRESQL  │   │       CCTV CAMERAS        │
+      │     MAIN SYSTEM SERVER  │   │      POSTGRESQL       │   │       CCTV CAMERAS        │
       ├─────────────────────────┤   ├───────────────────────┤   ├───────────────────────────┤
       │ User Login Verification │   │ User Accounts         │   │ Live Video Feed           │
       │ User Dashboard          │   │ Camera Information    │   │ Surveillance Monitoring   │
@@ -79,7 +79,7 @@ python main.py
                                   ▼
 
                     ┌─────────────────────────────────┐
-                    │       SECURITY FEATURES         │
+                    │        SECURITY FEATURES        │
                     ├─────────────────────────────────┤
                     │ Login Protection                │
                     │ Suspicious Activity Detection   │
@@ -90,26 +90,26 @@ python main.py
                                       
 
                     ┌─────────────────────────────────┐
-                    │      ALERT NOTIFICATION         │
-                    │ Sends Security Warnings         │
+                    │        ALERT NOTIFICATION       │
+                    │     Sends Security Warnings     │
                     └─────────────────┬───────────────┘
                                       │
                                       ▼
 
                     ┌─────────────────────────────────┐
-                    │        DISCORD CHANNEL          │
-                    │ Receives Real-Time Alerts       │
+                    │         DISCORD CHANNEL         │
+                    │    Receives Real-Time Alerts    │
                     └─────────────────────────────────┘
 
 
       ┌─────────────────────────────────────────────────────────────┐
-      │                     SYSTEM USERS                           │
+      │                         SYSTEM USERS                        │
       ├─────────────────────────────────────────────────────────────┤
       │ Administrator                                               │
       │ Security Personnel                                          │
       │ Authorized Users                                            │
       │                                                             │
-      │ Login → View Cameras → Monitor Activity → Receive Alerts   │
+      │ Login → View Cameras → Monitor Activity → Receive Alerts    │
       └─────────────────────────────────────────────────────────────┘
 
 
