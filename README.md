@@ -112,6 +112,15 @@ python main.py
       │ Login → View Cameras → Monitor Activity → Receive Alerts    │
       └─────────────────────────────────────────────────────────────┘
 
+      <img width="445" height="591" alt="Screenshot_13" src="https://github.com/user-attachments/assets/cfefb092-50a9-42ea-818a-5a0380e1a2fa" />
+
+      <img width="1919" height="895" alt="f70e7d92-1bfa-440d-8e4a-143fc18a42b7 (1)" src="https://github.com/user-attachments/assets/eba59908-8958-4593-a9dc-a2a09c64c22b" />
+
+      <img width="1919" height="895" alt="bac203c4-2062-42ef-9a2e-f6bb5a9d9f07" src="https://github.com/user-attachments/assets/1a9566f1-4ae3-4345-99df-db3f346075fd" />
+
+
+
+
 
 
 
