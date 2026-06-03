@@ -45,6 +45,73 @@ pip install -r requirements.txt
 python main.py
 ```
 
+                                        ┌─────────────────────┐
+                                        │      INTERNET       │
+                                        └──────────┬──────────┘
+                                                   │
+                                                   │
+                                  ┌────────────────┴────────────────┐
+                                  │      ROUTER / INTERNET HUB      │
+                                  │    Admin  │Passwword: [password]
+                                  └────────────────┬────────────────┘
+                                                   │
+                                                   │
+                                  ┌────────────────┴────────────────┐
+                                  │        NETWORK SWITCH         
+                                  │   
+                                  └───┬──────────┬──────────┬───────┘
+                                      │          │          │
+                                      │          │          │
+
+      ┌────────────┴────────────┐   ┌───────────┴───────────┐   ┌─────────────┴─────────────┐
+      │     MAIN SYSTEM SERVER  │   │      POSTGRESQL  │   │       CCTV CAMERAS        │
+      ├─────────────────────────┤   ├───────────────────────┤   ├───────────────────────────┤
+      │ User Login Verification │   │ User Accounts         │   │ Live Video Feed           │
+      │ User Dashboard          │   │ Camera Information    │   │ Surveillance Monitoring   │
+      │ Camera Monitoring       │   │ Activity Logs         │   │ Security Observation      │
+      │ Object Detection        │   │ Detection Records     │   └───────────────────────────┘
+      │ Security Monitoring     │   │ Incident Reports      │
+      │ Alert Generation        │   │ System Records        │
+      └────────────┬────────────┘   └───────────┬───────────┘
+                   │                            │
+                   └──────────────┬─────────────┘
+                                  │
+                                  ▼
+
+                    ┌─────────────────────────────────┐
+                    │       SECURITY FEATURES         │
+                    ├─────────────────────────────────┤
+                    │ Login Protection                │
+                    │ Suspicious Activity Detection   │
+                    │ Unauthorized Access Blocking    │
+                    │ User Session Protection         │
+                    │ System Maintenance Controls     │
+                    └─────────────────┬───────────────┘
+                                      
+
+                    ┌─────────────────────────────────┐
+                    │      ALERT NOTIFICATION         │
+                    │ Sends Security Warnings         │
+                    └─────────────────┬───────────────┘
+                                      │
+                                      ▼
+
+                    ┌─────────────────────────────────┐
+                    │        DISCORD CHANNEL          │
+                    │ Receives Real-Time Alerts       │
+                    └─────────────────────────────────┘
+
+
+      ┌─────────────────────────────────────────────────────────────┐
+      │                     SYSTEM USERS                           │
+      ├─────────────────────────────────────────────────────────────┤
+      │ Administrator                                               │
+      │ Security Personnel                                          │
+      │ Authorized Users                                            │
+      │                                                             │
+      │ Login → View Cameras → Monitor Activity → Receive Alerts   │
+      └─────────────────────────────────────────────────────────────┘
+
 
 
 
